@@ -42,6 +42,11 @@ function classifyIncomingInput(ctx: Context): {
     return { inputType: "text" };
   }
 
+  // Photo, voice, audio, and other non-text messages are classified as "other"
+  if (ctx.message?.photo) {
+    return { inputType: "other" };
+  }
+
   return { inputType: "other" };
 }
 

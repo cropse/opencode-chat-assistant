@@ -63,6 +63,12 @@ export const ru: I18nDictionary = {
   "bot.prompt_send_error": "Не удалось отправить запрос в OpenCode.",
   "bot.session_error": "🔴 OpenCode вернул ошибку: {message}",
   "bot.unknown_command": "⚠️ Неизвестная команда: {command}. Используйте /help для списка команд.",
+  "bot.photo_downloading": "⏳ Скачиваю фото...",
+  "bot.photo_too_large": "⚠️ Фото слишком большое (макс. {maxSizeMb}МБ)",
+  "bot.photo_model_no_image":
+    "⚠️ Текущая модель не поддерживает изображения. Отправляю только текст.",
+  "bot.photo_download_error": "🔴 Не удалось скачать фото",
+  "bot.photo_no_caption": "💡 Совет: Добавьте подпись, чтобы описать, что делать с этим фото.",
 
   "status.header_running": "🟢 **OpenCode Server запущен**",
   "status.health.healthy": "Healthy",

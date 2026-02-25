@@ -64,6 +64,11 @@ export const en = {
   "bot.prompt_send_error": "Failed to send request to OpenCode.",
   "bot.session_error": "🔴 OpenCode returned an error: {message}",
   "bot.unknown_command": "⚠️ Unknown command: {command}. Use /help to see available commands.",
+  "bot.photo_downloading": "⏳ Downloading photo...",
+  "bot.photo_too_large": "⚠️ Photo is too large (max {maxSizeMb}MB)",
+  "bot.photo_model_no_image": "⚠️ Current model doesn't support image input. Sending text only.",
+  "bot.photo_download_error": "🔴 Failed to download photo",
+  "bot.photo_no_caption": "💡 Tip: Add a caption to describe what you want to do with this photo.",
 
   "status.header_running": "🟢 **OpenCode Server is running**",
   "status.health.healthy": "Healthy",

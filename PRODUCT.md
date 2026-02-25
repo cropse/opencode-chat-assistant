@@ -139,7 +139,7 @@ Open tasks for upcoming iterations:
 - [ ] Add server crash notifications in Telegram
 - [ ] Add periodic health checks and optional auto-restart for OpenCode server
 - [ ] Improve Telegram-compatible message formatting for richer outputs
-- [ ] Support sending files from Telegram to OpenCode (screenshots, documents)
+- [x] Support sending photos from Telegram to OpenCode (screenshots, images)
 - [ ] Provide a Docker image and basic container deployment guide
 - [x] Add voice transcription
 

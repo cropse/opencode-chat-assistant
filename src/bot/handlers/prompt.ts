@@ -1,4 +1,5 @@
 import { Bot, Context } from "grammy";
+import type { FilePartInput, TextPartInput } from "@opencode-ai/sdk/v2";
 import { opencodeClient } from "../../opencode/client.js";
 import { clearSession, getCurrentSession, setCurrentSession } from "../../session/manager.js";
 import { ingestSessionInfoForCache } from "../../session/cache-manager.js";
@@ -77,14 +78,19 @@ export interface ProcessPromptDeps {
 
 /**
  * Processes a user prompt: ensures project/session, subscribes to events, and sends
- * the prompt to OpenCode. Used by both text and voice message handlers.
+ * the prompt to OpenCode. Used by text, voice, and photo message handlers.
  *
+ * @param ctx - Grammy context
+ * @param text - Text content of the prompt
+ * @param deps - Dependencies (bot and event subscription)
+ * @param fileParts - Optional file parts (for photo/document attachments)
  * @returns true if the prompt was dispatched, false if it was blocked/failed early.
  */
 export async function processUserPrompt(
   ctx: Context,
   text: string,
   deps: ProcessPromptDeps,
+  fileParts: FilePartInput[] = [],
 ): Promise<boolean> {
   const { bot, ensureEventSubscription } = deps;
 
@@ -193,17 +199,36 @@ export async function processUserPrompt(
     const currentAgent = getStoredAgent();
     const storedModel = getStoredModel();
 
+    // Build parts array with text and files
+    const parts: Array<TextPartInput | FilePartInput> = [];
+
+    // Add text part if present
+    if (text.trim().length > 0) {
+      parts.push({ type: "text", text });
+    }
+
+    // Add file parts
+    parts.push(...fileParts);
+
+    // If no text and files exist, use a placeholder
+    if (parts.length === 0 || (parts.length > 0 && parts.every((p) => p.type === "file"))) {
+      if (fileParts.length > 0) {
+        // Files without text - add a minimal system prompt
+        parts.unshift({ type: "text", text: "See attached file" });
+      }
+    }
+
     const promptOptions: {
       sessionID: string;
       directory: string;
-      parts: Array<{ type: "text"; text: string }>;
+      parts: Array<TextPartInput | FilePartInput>;
       model?: { providerID: string; modelID: string };
       agent?: string;
       variant?: string;
     } = {
       sessionID: currentSession.id,
       directory: currentSession.directory,
-      parts: [{ type: "text", text }],
+      parts,
       agent: currentAgent,
     };
 
@@ -228,9 +253,12 @@ export async function processUserPrompt(
       modelId: storedModel.modelID || "default",
       variant: storedModel.variant || "default",
       promptLength: text.length,
+      fileCount: fileParts.length,
     };
 
-    logger.info(`[Bot] Calling session.prompt (fire-and-forget) with agent=${currentAgent}...`);
+    logger.info(
+      `[Bot] Calling session.prompt (fire-and-forget) with agent=${currentAgent}, fileCount=${fileParts.length}...`,
+    );
 
     // CRITICAL: DO NOT wait for session.prompt to complete.
     // If we wait, the handler will not finish and grammY will not call getUpdates,

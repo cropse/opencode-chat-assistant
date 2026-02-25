@@ -49,6 +49,10 @@ import { pinnedMessageManager } from "../pinned/manager.js";
 import { t } from "../i18n/index.js";
 import { processUserPrompt } from "./handlers/prompt.js";
 import { handleVoiceMessage } from "./handlers/voice.js";
+import { downloadTelegramFile, toDataUri } from "./utils/file-download.js";
+import { getModelCapabilities, supportsInput } from "../model/capabilities.js";
+import { getStoredModel } from "../model/manager.js";
+import type { FilePartInput } from "@opencode-ai/sdk/v2";
 
 let botInstance: Bot<Context> | null = null;
 let chatIdInstance: number | null = null;
@@ -693,6 +697,70 @@ export function createBot(): Bot<Context> {
     botInstance = bot;
     chatIdInstance = ctx.chat.id;
     await handleVoiceMessage(ctx, voicePromptDeps);
+  });
+
+  // Photo message handler
+  bot.on("message:photo", async (ctx) => {
+    logger.debug(`[Bot] Received photo message, chatId=${ctx.chat.id}`);
+
+    const photos = ctx.message?.photo;
+    if (!photos || photos.length === 0) {
+      return;
+    }
+
+    const caption = ctx.message.caption || "";
+
+    try {
+      // Get the largest photo (last element in array)
+      const largestPhoto = photos[photos.length - 1];
+
+      // Check model capabilities
+      const storedModel = getStoredModel();
+      const capabilities = await getModelCapabilities(storedModel.providerID, storedModel.modelID);
+
+      if (!supportsInput(capabilities, "image")) {
+        logger.warn(
+          `[Bot] Model ${storedModel.providerID}/${storedModel.modelID} doesn't support image input`,
+        );
+        await ctx.reply(t("bot.photo_model_no_image"));
+
+        // Fall back to caption-only if present
+        if (caption.trim().length > 0) {
+          botInstance = bot;
+          chatIdInstance = ctx.chat.id;
+          const promptDeps = { bot, ensureEventSubscription };
+          await processUserPrompt(ctx, caption, promptDeps);
+        }
+        return;
+      }
+
+      // Download photo
+      await ctx.reply(t("bot.photo_downloading"));
+      const downloadedFile = await downloadTelegramFile(ctx.api, largestPhoto.file_id);
+
+      // Convert to data URI (Telegram always converts photos to JPEG)
+      const dataUri = toDataUri(downloadedFile.buffer, "image/jpeg");
+
+      // Create file part
+      const filePart: FilePartInput = {
+        type: "file",
+        mime: "image/jpeg",
+        filename: "photo.jpg",
+        url: dataUri,
+      };
+
+      logger.info(`[Bot] Sending photo (${downloadedFile.buffer.length} bytes) with prompt`);
+
+      botInstance = bot;
+      chatIdInstance = ctx.chat.id;
+
+      // Send via processUserPrompt with file part
+      const promptDeps = { bot, ensureEventSubscription };
+      await processUserPrompt(ctx, caption, promptDeps, [filePart]);
+    } catch (err) {
+      logger.error("[Bot] Error handling photo message:", err);
+      await ctx.reply(t("bot.photo_download_error"));
+    }
   });
 
   bot.on("message:text", async (ctx) => {
