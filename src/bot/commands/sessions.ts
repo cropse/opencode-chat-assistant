@@ -36,6 +36,10 @@ type SessionPage = {
   page: number;
 };
 
+export interface SessionSelectDeps {
+  ensureEventSubscription: (directory: string) => Promise<void>;
+}
+
 function buildSessionPageCallback(page: number): string {
   return `${SESSION_PAGE_CALLBACK_PREFIX}${page}`;
 }
@@ -169,7 +173,7 @@ export async function sessionsCommand(ctx: CommandContext<Context>) {
   }
 }
 
-export async function handleSessionSelect(ctx: Context): Promise<boolean> {
+export async function handleSessionSelect(ctx: Context, deps: SessionSelectDeps): Promise<boolean> {
   const callbackQuery = ctx.callbackQuery;
   if (!callbackQuery?.data || !callbackQuery.data.startsWith(SESSION_CALLBACK_PREFIX)) {
     return false;
@@ -241,7 +245,13 @@ export async function handleSessionSelect(ctx: Context): Promise<boolean> {
     };
     setCurrentSession(sessionInfo);
     summaryAggregator.clear();
+    summaryAggregator.setSession(session.id);
     clearAllInteractionState("session_switched");
+
+    safeBackgroundTask({
+      taskName: "sessions.ensureEventSubscription",
+      task: () => deps.ensureEventSubscription(currentProject.worktree),
+    });
 
     await ctx.answerCallbackQuery();
 

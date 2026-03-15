@@ -11,10 +11,15 @@ import { getStoredAgent } from "../../agent/manager.js";
 import { getStoredModel } from "../../model/manager.js";
 import { formatVariantForButton } from "../../variant/manager.js";
 import { createMainKeyboard } from "../utils/keyboard.js";
+import { safeBackgroundTask } from "../../utils/safe-background-task.js";
 import { logger } from "../../utils/logger.js";
 import { t } from "../../i18n/index.js";
 
-export async function newCommand(ctx: CommandContext<Context>) {
+export interface NewCommandDeps {
+  ensureEventSubscription: (directory: string) => Promise<void>;
+}
+
+export async function newCommand(ctx: CommandContext<Context>, deps: NewCommandDeps) {
   try {
     const currentProject = getCurrentProject();
 
@@ -44,8 +49,15 @@ export async function newCommand(ctx: CommandContext<Context>) {
     };
     setCurrentSession(sessionInfo);
     summaryAggregator.clear();
+    summaryAggregator.setSession(session.id);
     clearAllInteractionState("session_created");
     await ingestSessionInfoForCache(session);
+
+    // Start SSE event subscription for the new session's directory
+    safeBackgroundTask({
+      taskName: "new.ensureEventSubscription",
+      task: () => deps.ensureEventSubscription(currentProject.worktree),
+    });
 
     // Initialize pinned message manager and create pinned message
     if (!pinnedMessageManager.isInitialized()) {
