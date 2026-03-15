@@ -31,6 +31,7 @@ logs/
 run/
 settings.json
 .tmp/
+.tmpoc-*.log
 
 # Packaging artifacts
 *.tgz
