@@ -31,6 +31,7 @@ const COMMAND_DEFINITIONS: BotCommandI18nDefinition[] = [
   { command: "opencode_start", descriptionKey: "cmd.description.opencode_start" },
   { command: "opencode_stop", descriptionKey: "cmd.description.opencode_stop" },
   { command: "help", descriptionKey: "cmd.description.help" },
+  { command: "skills", descriptionKey: "cmd.description.skills" },
 ];
 
 export function getLocalizedBotCommands(): BotCommandDefinition[] {

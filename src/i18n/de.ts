@@ -10,6 +10,7 @@ export const de: I18nDictionary = {
   "cmd.description.opencode_start": "OpenCode-Server starten",
   "cmd.description.opencode_stop": "OpenCode-Server stoppen",
   "cmd.description.help": "Hilfe",
+  "cmd.description.skills": "Verfügbare Skills auflisten",
 
   "callback.unknown_command": "Unbekannter Befehl",
   "callback.processing_error": "Verarbeitungsfehler",
@@ -213,7 +214,8 @@ export const de: I18nDictionary = {
   "model.menu.prev_page": "⬅️ Zurück",
   "model.menu.next_page": "Weiter ➡️",
   "model.menu.page_empty_callback": "Auf dieser Seite gibt es keine Modelle",
-  "model.menu.page_load_error_callback": "Diese Seite kann nicht geladen werden. Bitte versuche es erneut.",
+  "model.menu.page_load_error_callback":
+    "Diese Seite kann nicht geladen werden. Bitte versuche es erneut.",
 
   "variant.model_not_selected_callback": "Fehler: Modell ist nicht ausgewählt",
   "variant.changed_callback": "Variante geändert: {name}",
@@ -392,4 +394,9 @@ export const de: I18nDictionary = {
     "🎤 Spracherkennung ist nicht konfiguriert.\n\nSetze STT_API_URL und STT_API_KEY in .env, um sie zu aktivieren.",
   "stt.error": "🔴 Audio konnte nicht erkannt werden: {error}",
   "stt.empty_result": "🎤 Keine Sprache in der Audionachricht erkannt.",
+
+  "skills.no_project": "⚠️ Kein Projekt ausgewählt. Verwende /projects um ein Projekt auszuwählen.",
+  "skills.empty": "🛠 Keine Skills für dieses Projekt verfügbar.",
+  "skills.title": "Verfügbare Skills",
+  "skills.error": "🔴 Fehler beim Laden der Skills.",
 };

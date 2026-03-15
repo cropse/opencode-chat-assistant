@@ -10,6 +10,7 @@ export const ru: I18nDictionary = {
   "cmd.description.opencode_start": "Запустить OpenCode сервер",
   "cmd.description.opencode_stop": "Остановить OpenCode сервер",
   "cmd.description.help": "Справка",
+  "cmd.description.skills": "Список доступных навыков",
 
   "callback.unknown_command": "Неизвестная команда",
   "callback.processing_error": "Ошибка обработки",
@@ -380,4 +381,9 @@ export const ru: I18nDictionary = {
     "🎤 Распознавание голоса не настроено.\n\nУстановите STT_API_URL и STT_API_KEY в .env для включения.",
   "stt.error": "🔴 Не удалось распознать аудио: {error}",
   "stt.empty_result": "🎤 В аудиосообщении не обнаружена речь.",
+
+  "skills.no_project": "⚠️ Проект не выбран. Используйте /projects чтобы выбрать проект.",
+  "skills.empty": "🛠 Нет доступных навыков для этого проекта.",
+  "skills.title": "Доступные навыки",
+  "skills.error": "🔴 Ошибка при загрузке навыков.",
 };

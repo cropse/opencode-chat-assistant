@@ -29,6 +29,7 @@ import {
   handleCommandsCallback,
   handleCommandTextArguments,
 } from "./commands/commands.js";
+import { skillsCommand } from "./commands/skills.js";
 import {
   handleQuestionCallback,
   showCurrentQuestion,
@@ -819,6 +820,7 @@ export function createBot(): Bot<Context> {
   bot.command("abort", abortCommand);
   bot.command("rename", renameCommand);
   bot.command("commands", commandsCommand);
+  bot.command("skills", skillsCommand);
 
   bot.on("message:text", unknownCommandMiddleware);
 

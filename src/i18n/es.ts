@@ -10,6 +10,7 @@ export const es: I18nDictionary = {
   "cmd.description.opencode_start": "Iniciar servidor OpenCode",
   "cmd.description.opencode_stop": "Detener servidor OpenCode",
   "cmd.description.help": "Ayuda",
+  "cmd.description.skills": "Listar skills disponibles",
 
   "callback.unknown_command": "Comando desconocido",
   "callback.processing_error": "Error de procesamiento",
@@ -391,4 +392,10 @@ export const es: I18nDictionary = {
     "🎤 El reconocimiento de voz no está configurado.\n\nConfigura STT_API_URL y STT_API_KEY en .env para habilitarlo.",
   "stt.error": "🔴 No se pudo reconocer el audio: {error}",
   "stt.empty_result": "🎤 No se detectó voz en el mensaje de audio.",
+
+  "skills.no_project":
+    "⚠️ No hay proyecto seleccionado. Usa /projects para seleccionar un proyecto primero.",
+  "skills.empty": "🛠 No hay skills disponibles para este proyecto.",
+  "skills.title": "Skills disponibles",
+  "skills.error": "🔴 Error al cargar los skills.",
 };

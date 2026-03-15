@@ -8,6 +8,7 @@ export const en = {
   "cmd.description.opencode_start": "Start OpenCode server",
   "cmd.description.opencode_stop": "Stop OpenCode server",
   "cmd.description.help": "Help",
+  "cmd.description.skills": "List available skills",
 
   "callback.unknown_command": "Unknown command",
   "callback.processing_error": "Processing error",
@@ -377,6 +378,11 @@ export const en = {
     "🎤 Voice recognition is not configured.\n\nSet STT_API_URL and STT_API_KEY in .env to enable it.",
   "stt.error": "🔴 Failed to recognize audio: {error}",
   "stt.empty_result": "🎤 No speech detected in the audio message.",
+
+  "skills.no_project": "⚠️ No project selected. Use /projects to select a project first.",
+  "skills.empty": "🛠 No skills available for this project.",
+  "skills.title": "Available Skills",
+  "skills.error": "🔴 Failed to load skills.",
 } as const;
 
 export type I18nKey = keyof typeof en;

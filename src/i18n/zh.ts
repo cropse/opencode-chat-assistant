@@ -10,6 +10,7 @@ export const zh: I18nDictionary = {
   "cmd.description.opencode_start": "启动 OpenCode 服务器",
   "cmd.description.opencode_stop": "停止 OpenCode 服务器",
   "cmd.description.help": "帮助",
+  "cmd.description.skills": "列出可用技能",
 
   "callback.unknown_command": "未知命令",
   "callback.processing_error": "处理错误",
@@ -344,4 +345,9 @@ export const zh: I18nDictionary = {
     "🎤 语音识别尚未配置。\n\n在 .env 中设置 STT_API_URL 和 STT_API_KEY 以启用。",
   "stt.error": "🔴 识别音频失败：{error}",
   "stt.empty_result": "🎤 音频消息中未检测到语音。",
+
+  "skills.no_project": "⚠️ 未选择项目。请先使用 /projects 选择项目。",
+  "skills.empty": "🛠 此项目没有可用的技能。",
+  "skills.title": "可用技能",
+  "skills.error": "🔴 加载技能失败。",
 };
