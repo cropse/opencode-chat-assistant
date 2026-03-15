@@ -1,7 +1,7 @@
 import { Context, InlineKeyboard } from "grammy";
 import { selectModel, fetchCurrentModel, getModelSelectionLists } from "../../model/manager.js";
 import { formatModelForDisplay } from "../../model/types.js";
-import type { FavoriteModel, ModelInfo, ModelSelectionLists } from "../../model/types.js";
+import type { FavoriteModel, ModelInfo } from "../../model/types.js";
 import { formatVariantForButton } from "../../variant/manager.js";
 import { logger } from "../../utils/logger.js";
 import { createMainKeyboard } from "../utils/keyboard.js";
