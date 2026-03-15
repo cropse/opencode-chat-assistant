@@ -144,6 +144,7 @@ When installed via npm, the configuration wizard handles the initial setup. The 
 | `BOT_LOCALE`                    | Bot UI language (supported locale code, e.g. `en`, `de`, `es`, `ru`, `zh`)                                   |    No    | `en`                     |
 | `SESSIONS_LIST_LIMIT`           | Sessions per page in `/sessions`                                                                             |    No    | `10`                     |
 | `PROJECTS_LIST_LIMIT`           | Projects per page in `/projects`                                                                             |    No    | `10`                     |
+| `MODELS_LIST_LIMIT`             | Models per page in model picker                                                                              |    No    | `10`                     |
 | `SERVICE_MESSAGES_INTERVAL_SEC` | Service messages interval (thinking + tool calls); keep `>=2` to avoid Telegram rate limits, `0` = immediate |    No    | `5`                      |
 | `HIDE_THINKING_MESSAGES`        | Hide `💭 Thinking...` service messages                                                                       |    No    | `false`                  |
 | `HIDE_TOOL_CALL_MESSAGES`       | Hide tool-call service messages (`💻 bash ...`, `📖 read ...`, etc.)                                         |    No    | `false`                  |
@@ -202,11 +203,9 @@ Since the bot runs locally on your machine and connects to your local OpenCode s
 ### Running from Source
 
 ```bash
-git clone https://github.com/grinev/opencode-telegram-bot.git
+git clone https://github.com/IH-Chung/opencode-telegram-bot.git
 cd opencode-telegram-bot
 npm install
-cp .env.example .env
-# Edit .env with your bot token, user ID, and model settings
 ```
 
 Build and run:
@@ -215,11 +214,14 @@ Build and run:
 npm run dev
 ```
 
+> On first launch, an interactive wizard will guide you through the configuration — bot token, Telegram user ID, OpenCode API URL, and optional server credentials. The `.env` file is saved to the project root directory.
+
 ### Available Scripts
 
 | Script                          | Description                          |
 | ------------------------------- | ------------------------------------ |
 | `npm run dev`                   | Build and start (development)        |
+| `npm run dev:watch`             | Run with auto-restart on file change |
 | `npm run build`                 | Compile TypeScript                   |
 | `npm start`                     | Run compiled code                    |
 | `npm run release:notes:preview` | Preview auto-generated release notes |
