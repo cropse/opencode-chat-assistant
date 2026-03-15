@@ -7,6 +7,7 @@ import type { PermissionRequest } from "../permission/types.js";
 import type { FileChange } from "../pinned/types.js";
 import { logger } from "../utils/logger.js";
 import { getCurrentProject } from "../settings/manager.js";
+import { markMessageProcessed, clearProcessedMessages } from "../opencode/processed-messages.js";
 
 export interface SummaryInfo {
   sessionId: string;
@@ -41,6 +42,10 @@ type ToolFileCallback = (fileInfo: ToolFileInfo) => void;
 type QuestionCallback = (questions: Question[], requestID: string) => void;
 
 type QuestionErrorCallback = () => void;
+
+type QuestionExternalReplyCallback = (requestID: string) => void;
+
+type PermissionExternalReplyCallback = (requestID: string) => void;
 
 type ThinkingCallback = (sessionId: string) => void;
 
@@ -78,6 +83,17 @@ type ClearedCallback = () => void;
 interface PreparedToolFileContext {
   fileData: CodeFileData | null;
   fileChange: FileChange | null;
+}
+
+interface MessagePartDeltaEvent {
+  type: "message.part.delta";
+  properties: {
+    sessionID: string;
+    messageID: string;
+    partID: string;
+    field: string;
+    delta: string;
+  };
 }
 
 function extractFirstUpdatedFileFromTitle(title: string): string {
@@ -120,6 +136,8 @@ class SummaryAggregator {
   private onToolFileCallback: ToolFileCallback | null = null;
   private onQuestionCallback: QuestionCallback | null = null;
   private onQuestionErrorCallback: QuestionErrorCallback | null = null;
+  private onQuestionExternalReplyCallback: QuestionExternalReplyCallback | null = null;
+  private onPermissionExternalReplyCallback: PermissionExternalReplyCallback | null = null;
   private onThinkingCallback: ThinkingCallback | null = null;
   private onTokensCallback: TokensCallback | null = null;
   private onSessionCompactedCallback: SessionCompactedCallback | null = null;
@@ -159,6 +177,14 @@ class SummaryAggregator {
 
   setOnQuestionError(callback: QuestionErrorCallback): void {
     this.onQuestionErrorCallback = callback;
+  }
+
+  setOnQuestionExternalReply(callback: QuestionExternalReplyCallback): void {
+    this.onQuestionExternalReplyCallback = callback;
+  }
+
+  setOnPermissionExternalReply(callback: PermissionExternalReplyCallback): void {
+    this.onPermissionExternalReplyCallback = callback;
   }
 
   setOnThinking(callback: ThinkingCallback): void {
@@ -222,6 +248,12 @@ class SummaryAggregator {
   }
 
   processEvent(event: Event): void {
+    const eventType = (event as { type: string }).type;
+    if (eventType === "message.part.delta") {
+      this.handleMessagePartDelta(event as unknown as MessagePartDeltaEvent);
+      return;
+    }
+
     // Log all question-related events for debugging
     if (event.type.startsWith("question.")) {
       logger.info(
@@ -262,9 +294,19 @@ class SummaryAggregator {
         break;
       case "question.replied":
         logger.info(`[Aggregator] Question replied: requestID=${event.properties.requestID}`);
+        if (this.onQuestionExternalReplyCallback) {
+          const cb = this.onQuestionExternalReplyCallback;
+          const reqID = event.properties.requestID as string;
+          setImmediate(() => cb(reqID));
+        }
         break;
       case "question.rejected":
         logger.info(`[Aggregator] Question rejected: requestID=${event.properties.requestID}`);
+        if (this.onQuestionExternalReplyCallback) {
+          const cb = this.onQuestionExternalReplyCallback;
+          const reqID = event.properties.requestID as string;
+          setImmediate(() => cb(reqID));
+        }
         break;
       case "session.diff":
         this.handleSessionDiff(event);
@@ -274,6 +316,11 @@ class SummaryAggregator {
         break;
       case "permission.replied":
         logger.info(`[Aggregator] Permission replied: requestID=${event.properties.requestID}`);
+        if (this.onPermissionExternalReplyCallback) {
+          const cb = this.onPermissionExternalReplyCallback;
+          const reqID = event.properties.requestID as string;
+          setImmediate(() => cb(reqID));
+        }
         break;
       default:
         logger.debug(`[Aggregator] Unhandled event type: ${event.type}`);
@@ -300,6 +347,9 @@ class SummaryAggregator {
     this.messageCount = 0;
     this.lastUpdated = 0;
 
+    // Reset the deduplication tracker so the next session starts fresh.
+    clearProcessedMessages();
+
     if (this.onClearedCallback) {
       try {
         this.onClearedCallback();
@@ -316,7 +366,14 @@ class SummaryAggregator {
   ): void {
     const { info } = event.properties;
 
+    logger.debug(
+      `[Aggregator] message.updated: role=${info.role}, sessionID=${info.sessionID}, currentSession=${this.currentSessionId}`,
+    );
+
     if (info.sessionID !== this.currentSessionId) {
+      logger.debug(
+        `[Aggregator] Skipping message.updated — session mismatch (event=${info.sessionID}, current=${this.currentSessionId})`,
+      );
       return;
     }
 
@@ -373,6 +430,8 @@ class SummaryAggregator {
         }
 
         if (this.onCompleteCallback && lastPart.length > 0) {
+          // Mark as processed BEFORE the callback so the message poller skips it.
+          markMessageProcessed(messageID);
           this.onCompleteCallback(this.currentSessionId!, lastPart);
         }
 
@@ -400,6 +459,10 @@ class SummaryAggregator {
     },
   ): void {
     const { part } = event.properties;
+
+    logger.debug(
+      `[Aggregator] message.part.updated: type=${part.type}, sessionID=${part.sessionID}, currentSession=${this.currentSessionId}`,
+    );
 
     if (part.sessionID !== this.currentSessionId) {
       return;
@@ -535,6 +598,48 @@ class SummaryAggregator {
             this.onFileChangeCallback(preparedFileContext.fileChange);
           }
         }
+      }
+    }
+
+    this.lastUpdated = Date.now();
+  }
+
+  private handleMessagePartDelta(event: MessagePartDeltaEvent): void {
+    const { sessionID, messageID, field, delta } = event.properties;
+
+    if (sessionID !== this.currentSessionId) {
+      return;
+    }
+
+    if (field !== "text" || !delta) {
+      return;
+    }
+
+    const messageInfo = this.messages.get(messageID);
+    if (messageInfo && messageInfo.role === "assistant") {
+      if (!this.currentMessageParts.has(messageID)) {
+        this.currentMessageParts.set(messageID, []);
+        this.startTypingIndicator();
+      }
+
+      const parts = this.currentMessageParts.get(messageID)!;
+      if (parts.length === 0) {
+        parts.push(delta);
+      } else {
+        const lastPartIndex = parts.length - 1;
+        parts[lastPartIndex] = `${parts[lastPartIndex]}${delta}`;
+      }
+    } else {
+      if (!this.pendingParts.has(messageID)) {
+        this.pendingParts.set(messageID, []);
+      }
+
+      const pending = this.pendingParts.get(messageID)!;
+      if (pending.length === 0) {
+        pending.push(delta);
+      } else {
+        const lastPartIndex = pending.length - 1;
+        pending[lastPartIndex] = `${pending[lastPartIndex]}${delta}`;
       }
     }
 
@@ -780,10 +885,9 @@ class SummaryAggregator {
     const { id, sessionID, questions } = event.properties;
 
     if (sessionID !== this.currentSessionId) {
-      logger.debug(
-        `[Aggregator] Ignoring question.asked for different session: ${sessionID} (current: ${this.currentSessionId})`,
+      logger.info(
+        `[Aggregator] Question from different session: ${sessionID} (current: ${this.currentSessionId}), showing anyway for cross-client sync`,
       );
-      return;
     }
 
     logger.info(`[Aggregator] Question asked: requestID=${id}, questions=${questions.length}`);
@@ -834,10 +938,9 @@ class SummaryAggregator {
     const request = event.properties;
 
     if (request.sessionID !== this.currentSessionId) {
-      logger.debug(
-        `[Aggregator] Ignoring permission.asked for different session: ${request.sessionID} (current: ${this.currentSessionId})`,
+      logger.info(
+        `[Aggregator] Permission from different session: ${request.sessionID} (current: ${this.currentSessionId}), showing anyway for cross-client sync`,
       );
-      return;
     }
 
     logger.info(

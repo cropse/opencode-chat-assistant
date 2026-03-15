@@ -1,6 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Event } from "@opencode-ai/sdk/v2";
 import { summaryAggregator } from "../../src/summary/aggregator.js";
+import {
+  isMessageProcessed,
+  clearProcessedMessages,
+} from "../../src/opencode/processed-messages.js";
 
 const mocked = vi.hoisted(() => ({
   getCurrentProjectMock: vi.fn(),
@@ -21,6 +25,7 @@ describe("summary/aggregator", () => {
   beforeEach(() => {
     mocked.getCurrentProjectMock.mockReset();
     mocked.getCurrentProjectMock.mockReturnValue({ id: "p1", worktree: "D:/repo", name: "repo" });
+    clearProcessedMessages();
     summaryAggregator.clear();
     summaryAggregator.setOnCleared(() => {});
     summaryAggregator.setOnTool(() => {});
@@ -432,5 +437,113 @@ describe("summary/aggregator", () => {
     expect(filePayload.hasFileAttachment).toBe(true);
     expect(filePayload.fileData.filename).toBe("edit_README.md.txt");
     expect(filePayload.fileData.buffer.toString("utf8")).toContain("Edit File/Path: README.md");
+  });
+
+  it("builds assistant completion text from message.part.delta chunks", () => {
+    const onComplete = vi.fn();
+    summaryAggregator.setOnComplete(onComplete);
+    summaryAggregator.setSession("session-1");
+
+    summaryAggregator.processEvent({
+      type: "message.updated",
+      properties: {
+        info: {
+          id: "message-delta-1",
+          sessionID: "session-1",
+          role: "assistant",
+          time: { created: Date.now() },
+        },
+      },
+    } as unknown as Event);
+
+    summaryAggregator.processEvent({
+      type: "message.part.delta",
+      properties: {
+        sessionID: "session-1",
+        messageID: "message-delta-1",
+        partID: "part-delta-1",
+        field: "text",
+        delta: "HELLO",
+      },
+    } as unknown as Event);
+
+    summaryAggregator.processEvent({
+      type: "message.part.delta",
+      properties: {
+        sessionID: "session-1",
+        messageID: "message-delta-1",
+        partID: "part-delta-1",
+        field: "text",
+        delta: "-WORLD",
+      },
+    } as unknown as Event);
+
+    summaryAggregator.processEvent({
+      type: "message.updated",
+      properties: {
+        info: {
+          id: "message-delta-1",
+          sessionID: "session-1",
+          role: "assistant",
+          time: { created: Date.now(), completed: Date.now() },
+        },
+      },
+    } as unknown as Event);
+
+    expect(onComplete).toHaveBeenCalledTimes(1);
+    expect(onComplete).toHaveBeenCalledWith("session-1", "HELLO-WORLD");
+  });
+
+  it("marks completed assistant messages as processed for the message poller", () => {
+    const onComplete = vi.fn();
+    summaryAggregator.setOnComplete(onComplete);
+    summaryAggregator.setSession("session-1");
+
+    // Create assistant message
+    summaryAggregator.processEvent({
+      type: "message.updated",
+      properties: {
+        info: {
+          id: "msg-mark-test",
+          sessionID: "session-1",
+          role: "assistant",
+          time: { created: Date.now() },
+        },
+      },
+    } as unknown as Event);
+
+    // Add text part
+    summaryAggregator.processEvent({
+      type: "message.part.updated",
+      properties: {
+        part: {
+          id: "part-1",
+          sessionID: "session-1",
+          messageID: "msg-mark-test",
+          type: "text",
+          text: "test reply",
+        },
+      },
+    } as unknown as Event);
+
+    // Before completion: message not yet marked
+    expect(isMessageProcessed("msg-mark-test")).toBe(false);
+
+    // Complete the message
+    summaryAggregator.processEvent({
+      type: "message.updated",
+      properties: {
+        info: {
+          id: "msg-mark-test",
+          sessionID: "session-1",
+          role: "assistant",
+          time: { created: Date.now(), completed: Date.now() },
+        },
+      },
+    } as unknown as Event);
+
+    // After completion: message should be marked as processed
+    expect(isMessageProcessed("msg-mark-test")).toBe(true);
+    expect(onComplete).toHaveBeenCalledTimes(1);
   });
 });
