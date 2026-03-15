@@ -106,10 +106,16 @@ describe("model/manager", () => {
   let tempDir = "";
   let originalXdgStateHome: string | undefined;
   let originalHome: string | undefined;
+  let originalUserProfile: string | undefined;
+  let originalAppData: string | undefined;
+  let originalLocalAppData: string | undefined;
 
   beforeEach(() => {
     originalXdgStateHome = process.env.XDG_STATE_HOME;
     originalHome = process.env.HOME;
+    originalUserProfile = process.env.USERPROFILE;
+    originalAppData = process.env.APPDATA;
+    originalLocalAppData = process.env.LOCALAPPDATA;
 
     vi.useRealTimers();
     resetCurrentModelState();
@@ -134,6 +140,9 @@ describe("model/manager", () => {
   afterEach(async () => {
     process.env.XDG_STATE_HOME = originalXdgStateHome;
     process.env.HOME = originalHome;
+    process.env.USERPROFILE = originalUserProfile;
+    process.env.APPDATA = originalAppData;
+    process.env.LOCALAPPDATA = originalLocalAppData;
     vi.useRealTimers();
 
     if (tempDir) {
@@ -227,23 +236,135 @@ describe("model/manager", () => {
 
       expect(result.favorites).toHaveLength(1);
       expect(result.favorites[0]).toEqual({ providerID: "opencode", modelID: "big-pickle" });
-      expect(result.recent).toHaveLength(0);
+      expect(result.recent).toHaveLength(4);
+      expect(result.recent).toContainEqual({ providerID: "openai", modelID: "gpt-4o" });
+      expect(result.recent).toContainEqual({ providerID: "openai", modelID: "gpt-3.5" });
+      expect(result.recent).toContainEqual({ providerID: "anthropic", modelID: "claude-sonnet" });
+      expect(result.recent).toContainEqual({ providerID: "google", modelID: "gemini-pro" });
     });
 
-    it("returns empty lists when file does not exist and no config model", async () => {
+    it("returns catalog models in recent when file does not exist and no config model", async () => {
       tempDir = await mkdtemp(path.join(os.tmpdir(), "opencode-model-test-"));
       process.env.XDG_STATE_HOME = path.join(tempDir, "nonexistent");
       configMock.opencode.model.provider = "";
       configMock.opencode.model.modelId = "";
 
-      const result = await getModelSelectionLists();
+      try {
+        const result = await getModelSelectionLists();
 
-      expect(result.favorites).toHaveLength(0);
-      expect(result.recent).toHaveLength(0);
+        expect(result.favorites).toHaveLength(0);
+        expect(result.recent).toHaveLength(5);
+      } finally {
+        // Restore config
+        configMock.opencode.model.provider = "opencode";
+        configMock.opencode.model.modelId = "big-pickle";
+      }
+    });
 
-      // Restore config
-      configMock.opencode.model.provider = "opencode";
-      configMock.opencode.model.modelId = "big-pickle";
+    it("prefers USERPROFILE over HOME when both are set", async () => {
+      const userProfileDir = await mkdtemp(path.join(os.tmpdir(), "opencode-userprofile-"));
+      const homeDir = await mkdtemp(path.join(os.tmpdir(), "opencode-home-"));
+
+      try {
+        process.env.XDG_STATE_HOME = "";
+        process.env.USERPROFILE = userProfileDir;
+        process.env.HOME = homeDir;
+
+        const modelFilePath = path.join(
+          userProfileDir,
+          ".local",
+          "state",
+          "opencode",
+          "model.json",
+        );
+        await mkdir(path.dirname(modelFilePath), { recursive: true });
+        await writeFile(
+          modelFilePath,
+          JSON.stringify({
+            favorite: [{ providerID: "openai", modelID: "gpt-4o" }],
+            recent: [{ providerID: "google", modelID: "gemini-pro" }],
+          }),
+          "utf-8",
+        );
+
+        const result = await getModelSelectionLists();
+
+        expect(result.favorites).toContainEqual({ providerID: "openai", modelID: "gpt-4o" });
+        expect(result.recent).toContainEqual({ providerID: "google", modelID: "gemini-pro" });
+      } finally {
+        await rm(userProfileDir, { recursive: true, force: true });
+        await rm(homeDir, { recursive: true, force: true });
+      }
+    });
+
+    it("falls back to APPDATA desktop path when xdg and home paths are unavailable", async () => {
+      const appDataDir = await mkdtemp(path.join(os.tmpdir(), "opencode-appdata-"));
+
+      try {
+        process.env.XDG_STATE_HOME = "";
+        process.env.USERPROFILE = "";
+        process.env.HOME = "";
+        process.env.APPDATA = appDataDir;
+        process.env.LOCALAPPDATA = "";
+
+        const modelFilePath = path.join(
+          appDataDir,
+          "ai.opencode.desktop",
+          "opencode",
+          "model.json",
+        );
+        await mkdir(path.dirname(modelFilePath), { recursive: true });
+        await writeFile(
+          modelFilePath,
+          JSON.stringify({
+            favorite: [{ providerID: "openai", modelID: "gpt-4o" }],
+            recent: [{ providerID: "google", modelID: "gemini-pro" }],
+          }),
+          "utf-8",
+        );
+
+        const result = await getModelSelectionLists();
+
+        expect(result.favorites).toContainEqual({ providerID: "openai", modelID: "gpt-4o" });
+        expect(result.recent).toContainEqual({ providerID: "google", modelID: "gemini-pro" });
+      } finally {
+        await rm(appDataDir, { recursive: true, force: true });
+      }
+    });
+
+    it("falls back to LOCALAPPDATA legacy path when APPDATA and xdg/home paths are unavailable", async () => {
+      const localAppDataDir = await mkdtemp(path.join(os.tmpdir(), "opencode-localappdata-"));
+
+      try {
+        process.env.XDG_STATE_HOME = "";
+        process.env.USERPROFILE = "";
+        process.env.HOME = "";
+        process.env.APPDATA = "";
+        process.env.LOCALAPPDATA = localAppDataDir;
+
+        const modelFilePath = path.join(
+          localAppDataDir,
+          "ai.opencode.desktop",
+          "opencode",
+          "model.json",
+        );
+        await mkdir(path.dirname(modelFilePath), { recursive: true });
+        await writeFile(
+          modelFilePath,
+          JSON.stringify({
+            favorite: [{ providerID: "openai", modelID: "gpt-4o" }],
+            recent: [{ providerID: "google", modelID: "gemini-pro" }],
+          }),
+          "utf-8",
+        );
+
+        const result = await getModelSelectionLists();
+
+        expect(result.favorites).toContainEqual({ providerID: "openai", modelID: "gpt-4o" });
+        expect(result.recent).toContainEqual({ providerID: "google", modelID: "gemini-pro" });
+      } finally {
+        await rm(localAppDataDir, { recursive: true, force: true });
+      }
     });
 
     it("handles missing recent array gracefully", async () => {
@@ -255,7 +376,7 @@ describe("model/manager", () => {
       const result = await getModelSelectionLists();
 
       expect(result.favorites).toHaveLength(2); // 1 from file + 1 default
-      expect(result.recent).toHaveLength(0);
+      expect(result.recent).toHaveLength(3);
     });
 
     it("handles missing favorite array gracefully", async () => {
@@ -267,8 +388,8 @@ describe("model/manager", () => {
       const result = await getModelSelectionLists();
 
       expect(result.favorites).toHaveLength(1); // just default
-      expect(result.recent).toHaveLength(1);
-      expect(result.recent[0]).toEqual({ providerID: "openai", modelID: "gpt-4o" });
+      expect(result.recent).toHaveLength(4);
+      expect(result.recent).toContainEqual({ providerID: "openai", modelID: "gpt-4o" });
     });
 
     it("filters out invalid model entries with missing providerID", async () => {
@@ -335,9 +456,11 @@ describe("model/manager", () => {
 
       const result = await getModelSelectionLists();
 
-      expect(result.recent).toHaveLength(2);
+      expect(result.recent).toHaveLength(4);
       expect(result.recent).toContainEqual({ providerID: "openai", modelID: "gpt-4o" });
       expect(result.recent).toContainEqual({ providerID: "google", modelID: "gemini-pro" });
+      expect(result.recent).toContainEqual({ providerID: "openai", modelID: "gpt-3.5" });
+      expect(result.recent).toContainEqual({ providerID: "anthropic", modelID: "claude-sonnet" });
     });
 
     it("filters out models that are not present in provider catalog", async () => {
@@ -362,6 +485,9 @@ describe("model/manager", () => {
       });
 
       expect(result.recent).toContainEqual({ providerID: "google", modelID: "gemini-pro" });
+      expect(result.recent).toContainEqual({ providerID: "openai", modelID: "gpt-3.5" });
+      expect(result.recent).toContainEqual({ providerID: "anthropic", modelID: "claude-sonnet" });
+      expect(result.recent).toHaveLength(3);
       expect(result.recent).not.toContainEqual({
         providerID: "google",
         modelID: "missing-recent",

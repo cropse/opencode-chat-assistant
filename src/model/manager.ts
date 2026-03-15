@@ -12,9 +12,14 @@ interface OpenCodeModelState {
 
 const MODEL_CATALOG_CACHE_TTL_MS = 10 * 60 * 1000;
 
-let cachedValidModelKeys: Set<string> | null = null;
+interface ModelCatalogData {
+  validModelKeys: Set<string>;
+  allModels: FavoriteModel[];
+}
+
+let cachedModelCatalogData: ModelCatalogData | null = null;
 let modelCatalogCacheExpiresAt = 0;
-let modelCatalogFetchInFlight: Promise<Set<string> | null> | null = null;
+let modelCatalogFetchInFlight: Promise<ModelCatalogData | null> | null = null;
 
 function getModelKey(providerID: string, modelID: string): string {
   return `${providerID}/${modelID}`;
@@ -55,12 +60,12 @@ function filterModelsByCatalog(
   return models.filter((model) => validModelKeys.has(getModelKey(model.providerID, model.modelID)));
 }
 
-async function getValidModelKeys(): Promise<Set<string> | null> {
-  if (cachedValidModelKeys && Date.now() < modelCatalogCacheExpiresAt) {
+async function getModelCatalogData(): Promise<ModelCatalogData | null> {
+  if (cachedModelCatalogData && Date.now() < modelCatalogCacheExpiresAt) {
     logger.debug(
-      `[ModelManager] Model catalog cache hit: models=${cachedValidModelKeys.size}, ttlMs=${modelCatalogCacheExpiresAt - Date.now()}`,
+      `[ModelManager] Model catalog cache hit: models=${cachedModelCatalogData.validModelKeys.size}, ttlMs=${modelCatalogCacheExpiresAt - Date.now()}`,
     );
-    return cachedValidModelKeys;
+    return cachedModelCatalogData;
   }
 
   if (modelCatalogFetchInFlight) {
@@ -76,36 +81,41 @@ async function getValidModelKeys(): Promise<Set<string> | null> {
       if (response.error || !response.data) {
         logger.warn("[ModelManager] Failed to refresh model catalog:", response.error);
 
-        if (cachedValidModelKeys) {
+        if (cachedModelCatalogData) {
           logger.warn("[ModelManager] Using stale model catalog cache after refresh failure");
-          return cachedValidModelKeys;
+          return cachedModelCatalogData;
         }
 
         return null;
       }
 
       const validModelKeys = new Set<string>();
+      const allModels: FavoriteModel[] = [];
 
       for (const provider of response.data.providers) {
         for (const modelID of Object.keys(provider.models)) {
           validModelKeys.add(getModelKey(provider.id, modelID));
+          allModels.push({ providerID: provider.id, modelID });
         }
       }
 
-      cachedValidModelKeys = validModelKeys;
+      cachedModelCatalogData = {
+        validModelKeys,
+        allModels,
+      };
       modelCatalogCacheExpiresAt = Date.now() + MODEL_CATALOG_CACHE_TTL_MS;
 
       logger.debug(
         `[ModelManager] Model catalog refreshed: providers=${response.data.providers.length}, models=${validModelKeys.size}`,
       );
 
-      return cachedValidModelKeys;
+      return cachedModelCatalogData;
     } catch (err) {
       logger.warn("[ModelManager] Error refreshing model catalog:", err);
 
-      if (cachedValidModelKeys) {
+      if (cachedModelCatalogData) {
         logger.warn("[ModelManager] Using stale model catalog cache after refresh exception");
-        return cachedValidModelKeys;
+        return cachedModelCatalogData;
       }
 
       return null;
@@ -115,6 +125,11 @@ async function getValidModelKeys(): Promise<Set<string> | null> {
   })();
 
   return modelCatalogFetchInFlight;
+}
+
+async function getValidModelKeys(): Promise<Set<string> | null> {
+  const modelCatalogData = await getModelCatalogData();
+  return modelCatalogData?.validModelKeys ?? null;
 }
 
 function normalizeFavoriteModels(state: OpenCodeModelState): FavoriteModel[] {
@@ -155,15 +170,39 @@ function normalizeRecentModels(state: OpenCodeModelState): FavoriteModel[] {
     }));
 }
 
-function getOpenCodeModelStatePath(): string {
+function getOpenCodeModelStatePaths(): string[] {
+  const candidates: string[] = [];
+  const pushUniqueCandidate = (baseDir: string | undefined, ...segments: string[]): void => {
+    if (!baseDir || baseDir.trim().length === 0) {
+      return;
+    }
+
+    const candidate = path.join(baseDir, ...segments);
+    if (!candidates.includes(candidate)) {
+      candidates.push(candidate);
+    }
+  };
+
   const xdgStateHome = process.env.XDG_STATE_HOME;
+  pushUniqueCandidate(xdgStateHome, "opencode", "model.json");
 
-  if (xdgStateHome && xdgStateHome.trim().length > 0) {
-    return path.join(xdgStateHome, "opencode", "model.json");
-  }
+  // OpenCode Desktop (Electron) on Windows stores state under APPDATA (Roaming).
+  const appData = process.env.APPDATA;
+  pushUniqueCandidate(appData, "ai.opencode.desktop", "opencode", "model.json");
 
-  const homeDir = process.env.HOME || process.env.USERPROFILE || "";
-  return path.join(homeDir, ".local", "state", "opencode", "model.json");
+  // Legacy or alternative desktop installs may still use LOCALAPPDATA.
+  const localAppData = process.env.LOCALAPPDATA;
+  pushUniqueCandidate(localAppData, "ai.opencode.desktop", "opencode", "model.json");
+  pushUniqueCandidate(localAppData, "opencode", "model.json");
+
+  // OpenCode CLI uses xdg-basedir and may resolve to ~/.local/state on all platforms.
+  const userProfile = process.env.USERPROFILE;
+  pushUniqueCandidate(userProfile, ".local", "state", "opencode", "model.json");
+
+  const homeDir = process.env.HOME;
+  pushUniqueCandidate(homeDir, ".local", "state", "opencode", "model.json");
+
+  return candidates;
 }
 
 /**
@@ -172,18 +211,36 @@ function getOpenCodeModelStatePath(): string {
  */
 export async function getModelSelectionLists(): Promise<ModelSelectionLists> {
   const envDefaultModel = getEnvDefaultModel();
+  const modelCatalogData = await getModelCatalogData();
+  const validModelKeys = modelCatalogData?.validModelKeys ?? null;
+  const allCatalogModels = modelCatalogData?.allModels ?? [];
 
   try {
     const fs = await import("fs/promises");
+    const stateFilePaths = getOpenCodeModelStatePaths();
 
-    const stateFilePath = getOpenCodeModelStatePath();
-    const content = await fs.readFile(stateFilePath, "utf-8");
+    let stateFilePath = "";
+    let content = "";
+    let lastError: unknown;
+
+    for (const candidatePath of stateFilePaths) {
+      try {
+        content = await fs.readFile(candidatePath, "utf-8");
+        stateFilePath = candidatePath;
+        break;
+      } catch (err) {
+        lastError = err;
+      }
+    }
+
+    if (!stateFilePath) {
+      throw lastError ?? new Error("No OpenCode model state path candidates available");
+    }
+
     const state = JSON.parse(content) as OpenCodeModelState;
 
     const rawFavorites = normalizeFavoriteModels(state);
     const rawRecent = normalizeRecentModels(state);
-    const shouldValidateWithCatalog = rawFavorites.length > 0 || rawRecent.length > 0;
-    const validModelKeys = shouldValidateWithCatalog ? await getValidModelKeys() : null;
 
     const validatedFavorites = filterModelsByCatalog(rawFavorites, validModelKeys);
     const validatedRecent = filterModelsByCatalog(rawRecent, validModelKeys);
@@ -214,7 +271,7 @@ export async function getModelSelectionLists(): Promise<ModelSelectionLists> {
     const favoriteKeys = new Set(
       favorites.map((model) => getModelKey(model.providerID, model.modelID)),
     );
-    const recent = dedupeModels(validatedRecent).filter(
+    const recent = dedupeModels([...validatedRecent, ...allCatalogModels]).filter(
       (model) => !favoriteKeys.has(getModelKey(model.providerID, model.modelID)),
     );
 
@@ -225,20 +282,28 @@ export async function getModelSelectionLists(): Promise<ModelSelectionLists> {
     return { favorites, recent };
   } catch (err) {
     if (envDefaultModel) {
+      const favoriteKeys = new Set([
+        getModelKey(envDefaultModel.providerID, envDefaultModel.modelID),
+      ]);
+      const recent = dedupeModels(allCatalogModels).filter(
+        (model) => !favoriteKeys.has(getModelKey(model.providerID, model.modelID)),
+      );
+
       logger.warn(
         "[ModelManager] Failed to load OpenCode model state, using config model as favorite:",
         err,
       );
       return {
         favorites: [envDefaultModel],
-        recent: [],
+        recent,
       };
     }
 
     logger.error("[ModelManager] Failed to load OpenCode model state:", err);
+    const recent = dedupeModels(allCatalogModels);
     return {
       favorites: [],
-      recent: [],
+      recent,
     };
   }
 }
@@ -288,7 +353,7 @@ export async function reconcileStoredModelSelection(): Promise<void> {
 }
 
 export function __resetModelCatalogCacheForTests(): void {
-  cachedValidModelKeys = null;
+  cachedModelCatalogData = null;
   modelCatalogCacheExpiresAt = 0;
   modelCatalogFetchInFlight = null;
 }
