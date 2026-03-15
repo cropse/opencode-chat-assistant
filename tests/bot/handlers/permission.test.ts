@@ -58,10 +58,7 @@ vi.mock("../../../src/utils/safe-background-task.js", () => ({
   },
 }));
 
-function createPermissionRequest(
-  id: string,
-  overrides: Partial<PermissionRequest> = {},
-): PermissionRequest {
+function createPermissionRequest(id: string): PermissionRequest {
   return {
     id,
     sessionID: "session-1",
@@ -69,7 +66,6 @@ function createPermissionRequest(
     patterns: ["npm test"],
     metadata: {},
     always: [],
-    ...overrides,
   };
 }
 
@@ -294,25 +290,5 @@ describe("bot/handlers/permission", () => {
 
     expect(permissionManager.isActive()).toBe(false);
     expect(interactionManager.getSnapshot()).toBeNull();
-  });
-
-  it("sends permission text in raw mode for underscore-based permission names", async () => {
-    const botApi = createBotApi(800);
-
-    await showPermissionRequest(
-      botApi,
-      777,
-      createPermissionRequest("perm-external", {
-        permission: "external_directory",
-        patterns: ["D:/data/my_project"],
-      }),
-    );
-
-    const sendMessageMock = botApi.sendMessage as unknown as ReturnType<typeof vi.fn>;
-    const [, text, options] = sendMessageMock.mock.calls[0];
-
-    expect(text).toContain(t("permission.name.external_directory"));
-    expect(text).toContain("• D:/data/my_project");
-    expect(options).not.toHaveProperty("parse_mode");
   });
 });

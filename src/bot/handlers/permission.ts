@@ -5,8 +5,10 @@ import { getCurrentProject } from "../../settings/manager.js";
 import { getCurrentSession } from "../../session/manager.js";
 import { summaryAggregator } from "../../summary/aggregator.js";
 import { interactionManager } from "../../interaction/manager.js";
+import { isTelegramMarkdownParseError } from "../utils/send-with-markdown-fallback.js";
 import { logger } from "../../utils/logger.js";
 import { safeBackgroundTask } from "../../utils/safe-background-task.js";
+import { markBotPermissionReply } from "../index.js";
 import { PermissionRequest, PermissionReply } from "../../permission/types.js";
 import type { I18nKey } from "../../i18n/en.js";
 import { t } from "../../i18n/index.js";
@@ -24,7 +26,6 @@ const PERMISSION_NAME_KEYS: Record<string, I18nKey> = {
   list: "permission.name.list",
   task: "permission.name.task",
   lsp: "permission.name.lsp",
-  external_directory: "permission.name.external_directory",
 };
 
 // Permission type emojis
@@ -40,7 +41,6 @@ const PERMISSION_EMOJIS: Record<string, string> = {
   list: "📂",
   task: "⚙️",
   lsp: "🔧",
-  external_directory: "📁",
 };
 
 function getCallbackMessageId(ctx: Context): number | null {
@@ -190,6 +190,9 @@ async function handlePermissionReply(
 
   logger.info(`[PermissionHandler] Sending permission reply: ${reply}, requestID=${requestID}`);
 
+  // Mark this requestID as bot-initiated so the external reply handler ignores it
+  markBotPermissionReply(requestID);
+
   // CRITICAL: Fire-and-forget! Do not block the handler
   safeBackgroundTask({
     taskName: "permission.reply",
@@ -240,6 +243,7 @@ export async function showPermissionRequest(
   try {
     const message = await bot.sendMessage(chatId, text, {
       reply_markup: keyboard,
+      parse_mode: "Markdown",
     });
 
     logger.debug(`[PermissionHandler] Message sent, messageId=${message.message_id}`);
@@ -252,8 +256,30 @@ export async function showPermissionRequest(
 
     summaryAggregator.stopTypingIndicator();
   } catch (err) {
-    logger.error("[PermissionHandler] Failed to send permission message:", err);
-    throw err;
+    if (isTelegramMarkdownParseError(err)) {
+      logger.warn("[PermissionHandler] Markdown parse failed, retrying without parse_mode");
+      try {
+        const message = await bot.sendMessage(chatId, text, {
+          reply_markup: keyboard,
+        });
+
+        logger.debug(`[PermissionHandler] Fallback message sent, messageId=${message.message_id}`);
+        permissionManager.startPermission(request, message.message_id);
+
+        syncPermissionInteractionState({
+          requestID: request.id,
+          messageId: message.message_id,
+        });
+
+        summaryAggregator.stopTypingIndicator();
+      } catch (fallbackErr) {
+        logger.error("[PermissionHandler] Fallback send also failed:", fallbackErr);
+        throw fallbackErr;
+      }
+    } else {
+      logger.error("[PermissionHandler] Failed to send permission message:", err);
+      throw err;
+    }
   }
 }
 
@@ -270,7 +296,9 @@ function formatPermissionText(request: PermissionRequest): string {
   // Show patterns (commands/files)
   if (request.patterns.length > 0) {
     request.patterns.forEach((pattern) => {
-      text += `• ${pattern}\n`;
+      // Escape backticks for Markdown code
+      const escapedPattern = pattern.replace(/`/g, "\\`");
+      text += `\`${escapedPattern}\`\n`;
     });
   }
 
