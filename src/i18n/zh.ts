@@ -174,6 +174,11 @@ export const zh: I18nDictionary = {
   "model.menu.recent_empty": "— 列表为空。",
   "model.menu.favorites_hint": "ℹ️ 可在 OpenCode CLI 中将模型加入收藏，使其显示在列表顶部。",
   "model.menu.error": "🔴 获取模型列表失败",
+  "model.menu.page_indicator": "第 {current}/{total} 页",
+  "model.menu.prev_page": "⬅️ 上一页",
+  "model.menu.next_page": "下一页 ➡️",
+  "model.menu.page_empty_callback": "这一页没有模型",
+  "model.menu.page_load_error_callback": "无法加载此页面。请重试。",
 
   "variant.model_not_selected_callback": "错误：未选择模型",
   "variant.changed_callback": "变体已更改：{name}",

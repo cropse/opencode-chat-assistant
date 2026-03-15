@@ -199,6 +199,11 @@ export const ru: I18nDictionary = {
   "model.menu.favorites_hint":
     "ℹ️ Добавляйте модели в избранное через OpenCode CLI, чтобы они были вверху списка.",
   "model.menu.error": "🔴 Не удалось получить список моделей",
+  "model.menu.page_indicator": "Страница {current}/{total}",
+  "model.menu.prev_page": "⬅️ Назад",
+  "model.menu.next_page": "Вперёд ➡️",
+  "model.menu.page_empty_callback": "На этой странице нет моделей",
+  "model.menu.page_load_error_callback": "Не удалось загрузить эту страницу. Попробуйте снова.",
 
   "variant.model_not_selected_callback": "Ошибка: модель не выбрана",
   "variant.changed_callback": "Вариант изменен: {name}",
