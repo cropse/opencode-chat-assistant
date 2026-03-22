@@ -142,8 +142,8 @@ describe("bot/handlers/permission", () => {
     expect(getCallbackData(replyMarkup.inline_keyboard[2]?.[0])).toBe("permission:reject");
 
     expect(permissionManager.isActive()).toBe(true);
-    expect(permissionManager.getRequestID(500)).toBe("perm-1");
-    expect(permissionManager.getMessageId()).toBe(500);
+    expect(permissionManager.getRequestID("500")).toBe("perm-1");
+    expect(permissionManager.getMessageId()).toBe("500");
     expect(permissionManager.getPendingCount()).toBe(1);
 
     const state = interactionManager.getSnapshot();
@@ -166,10 +166,10 @@ describe("bot/handlers/permission", () => {
     const deleteMessageMock = botApi.deleteMessage as unknown as ReturnType<typeof vi.fn>;
     expect(deleteMessageMock).not.toHaveBeenCalled();
 
-    expect(permissionManager.getRequestID(500)).toBe("perm-1");
-    expect(permissionManager.getRequestID(501)).toBe("perm-2");
-    expect(permissionManager.getMessageId()).toBe(501);
-    expect(permissionManager.getMessageIds()).toEqual([500, 501]);
+    expect(permissionManager.getRequestID("500")).toBe("perm-1");
+    expect(permissionManager.getRequestID("501")).toBe("perm-2");
+    expect(permissionManager.getMessageId()).toBe("501");
+    expect(permissionManager.getMessageIds()).toEqual(["500", "501"]);
     expect(permissionManager.getPendingCount()).toBe(2);
 
     const state = interactionManager.getSnapshot();
@@ -200,7 +200,7 @@ describe("bot/handlers/permission", () => {
 
     expect(permissionManager.isActive()).toBe(true);
     expect(permissionManager.getPendingCount()).toBe(2);
-    expect(permissionManager.getRequestID(501)).toBe("perm-2");
+    expect(permissionManager.getRequestID("501")).toBe("perm-2");
   });
 
   it("handles valid permission reply and clears active states", async () => {
@@ -251,7 +251,7 @@ describe("bot/handlers/permission", () => {
 
     expect(permissionManager.isActive()).toBe(true);
     expect(permissionManager.getPendingCount()).toBe(1);
-    expect(permissionManager.getRequestID(701)).toBe("perm-2");
+    expect(permissionManager.getRequestID("701")).toBe("perm-2");
 
     const stateAfterFirstReply = interactionManager.getSnapshot();
     expect(stateAfterFirstReply?.kind).toBe("permission");

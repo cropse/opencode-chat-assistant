@@ -1,4 +1,4 @@
-import type { Context } from "grammy";
+import type { NormalizedInput } from "../platform/types.js";
 import { interactionManager } from "./manager.js";
 import type {
   BlockReason,
@@ -24,17 +24,16 @@ function normalizeIncomingCommand(text: string): string | null {
   return withoutMention;
 }
 
-function classifyIncomingInput(ctx: Context): {
+function classifyIncomingInput(input: NormalizedInput): {
   inputType: IncomingInputType;
   command?: string;
 } {
-  if (ctx.callbackQuery?.data) {
+  if (input.type === "callback") {
     return { inputType: "callback" };
   }
 
-  const text = ctx.message?.text;
-  if (typeof text === "string") {
-    const command = normalizeIncomingCommand(text);
+  if (input.type === "text" && input.text !== undefined) {
+    const command = normalizeIncomingCommand(input.text);
     if (command) {
       return { inputType: "command", command };
     }
@@ -42,11 +41,7 @@ function classifyIncomingInput(ctx: Context): {
     return { inputType: "text" };
   }
 
-  // Photo, voice, audio, and other non-text messages are classified as "other"
-  if (ctx.message?.photo) {
-    return { inputType: "other" };
-  }
-
+  // Photo, voice, document, and other non-text messages are classified as "other"
   return { inputType: "other" };
 }
 
@@ -90,17 +85,18 @@ function createBlockDecision(
   };
 }
 
-function isAllowedRenameCancelCallback(ctx: Context, state: InteractionState): boolean {
+function isAllowedRenameCancelCallback(input: NormalizedInput, state: InteractionState): boolean {
   return (
     state.kind === "rename" &&
     state.expectedInput === "text" &&
-    ctx.callbackQuery?.data === "rename:cancel"
+    input.type === "callback" &&
+    input.callbackData === "rename:cancel"
   );
 }
 
-export function resolveInteractionGuardDecision(ctx: Context): GuardDecision {
+export function resolveInteractionGuardDecision(input: NormalizedInput): GuardDecision {
   const state = interactionManager.getSnapshot();
-  const { inputType, command } = classifyIncomingInput(ctx);
+  const { inputType, command } = classifyIncomingInput(input);
 
   if (!state) {
     return createAllowDecision(inputType, null, command);
@@ -131,7 +127,7 @@ export function resolveInteractionGuardDecision(ctx: Context): GuardDecision {
     return createBlockDecision(inputType, state, "expected_text", command);
   }
 
-  if (inputType === "callback" && isAllowedRenameCancelCallback(ctx, state)) {
+  if (inputType === "callback" && isAllowedRenameCancelCallback(input, state)) {
     return createAllowDecision(inputType, state, command);
   }
 

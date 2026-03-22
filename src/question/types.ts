@@ -1,3 +1,5 @@
+import type { PlatformMessageRef } from "../platform/types.js";
+
 export interface QuestionOption {
   label: string;
   description: string;
@@ -21,8 +23,8 @@ export interface QuestionState {
   selectedOptions: Map<number, Set<number>>;
   customAnswers: Map<number, string>;
   customInputQuestionIndex: number | null;
-  activeMessageId: number | null;
-  messageIds: number[];
+  activeMessageId: PlatformMessageRef | null;
+  messageIds: PlatformMessageRef[];
   isActive: boolean;
   requestID: string | null;
 }

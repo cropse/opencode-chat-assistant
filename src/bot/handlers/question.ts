@@ -7,19 +7,20 @@ import { summaryAggregator } from "../../summary/aggregator.js";
 import { interactionManager } from "../../interaction/manager.js";
 import { logger } from "../../utils/logger.js";
 import { safeBackgroundTask } from "../../utils/safe-background-task.js";
+import { toMessageRef, fromMessageRef } from "../../platform/telegram/adapter.js";
 import { t } from "../../i18n/index.js";
 import { markBotQuestionReply } from "../index.js";
 
 const MAX_BUTTON_LENGTH = 60;
 
-function getCallbackMessageId(ctx: Context): number | null {
+function getCallbackMessageId(ctx: Context): string | null {
   const message = ctx.callbackQuery?.message;
   if (!message || !("message_id" in message)) {
     return null;
   }
 
   const messageId = (message as { message_id?: number }).message_id;
-  return typeof messageId === "number" ? messageId : null;
+  return typeof messageId === "number" ? toMessageRef(messageId) : null;
 }
 
 function clearQuestionInteraction(reason: string): void {
@@ -32,7 +33,7 @@ function clearQuestionInteraction(reason: string): void {
 function syncQuestionInteractionState(
   expectedInput: "callback" | "mixed",
   questionIndex: number,
-  messageId: number | null,
+  messageId: string | null,
 ): void {
   const metadata: Record<string, unknown> = {
     questionIndex,
@@ -279,8 +280,8 @@ export async function showCurrentQuestion(bot: Context["api"], chatId: number): 
 
     logger.debug(`[QuestionHandler] Message sent, messageId=${message.message_id}`);
 
-    questionManager.addMessageId(message.message_id);
-    questionManager.setActiveMessageId(message.message_id);
+    questionManager.addMessageId(toMessageRef(message.message_id));
+    questionManager.setActiveMessageId(toMessageRef(message.message_id));
     syncQuestionInteractionState(
       "callback",
       questionManager.getCurrentIndex(),
@@ -321,7 +322,7 @@ export async function handleQuestionTextAnswer(ctx: Context): Promise<void> {
   // Delete the previous question message
   const activeMessageId = questionManager.getActiveMessageId();
   if (activeMessageId !== null && ctx.chat) {
-    await ctx.api.deleteMessage(ctx.chat.id, activeMessageId).catch(() => {});
+    await ctx.api.deleteMessage(ctx.chat.id, fromMessageRef(activeMessageId)).catch(() => {});
   }
 
   // DO NOT send the answer immediately - move to the next question

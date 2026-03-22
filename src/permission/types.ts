@@ -1,3 +1,5 @@
+import type { PlatformMessageRef } from "../platform/types.js";
+
 /**
  * Permission request from OpenCode (maps to SDK PermissionRequest)
  */
@@ -23,5 +25,5 @@ export type PermissionReply = "once" | "always" | "reject";
  * State for active permission requests
  */
 export interface PermissionState {
-  requestsByMessageId: Map<number, PermissionRequest>; // Telegram message ID -> request
+  requestsByMessageId: Map<PlatformMessageRef, PermissionRequest>; // Platform message ref -> request
 }

@@ -96,7 +96,7 @@ describe("bot/commands/rename", () => {
     await renameCommand(ctx as never);
 
     expect(renameManager.isWaitingForName()).toBe(true);
-    expect(renameManager.getMessageId()).toBe(555);
+    expect(renameManager.getMessageId()).toBe("555");
 
     const interactionState = interactionManager.getSnapshot();
     expect(interactionState?.kind).toBe("rename");
@@ -107,7 +107,7 @@ describe("bot/commands/rename", () => {
 
   it("renames session on valid text and clears states", async () => {
     renameManager.startWaiting("session-1", "D:/repo", "Old title");
-    renameManager.setMessageId(555);
+    renameManager.setMessageId("555");
     interactionManager.start({
       kind: "rename",
       expectedInput: "text",
@@ -136,7 +136,7 @@ describe("bot/commands/rename", () => {
 
   it("keeps rename flow active on empty title", async () => {
     renameManager.startWaiting("session-1", "D:/repo", "Old title");
-    renameManager.setMessageId(555);
+    renameManager.setMessageId("555");
     interactionManager.start({
       kind: "rename",
       expectedInput: "text",
@@ -155,7 +155,7 @@ describe("bot/commands/rename", () => {
 
   it("rejects stale rename cancel callback", async () => {
     renameManager.startWaiting("session-1", "D:/repo", "Old title");
-    renameManager.setMessageId(555);
+    renameManager.setMessageId("555");
     interactionManager.start({
       kind: "rename",
       expectedInput: "text",
@@ -176,7 +176,7 @@ describe("bot/commands/rename", () => {
 
   it("cancels active rename and clears states", async () => {
     renameManager.startWaiting("session-1", "D:/repo", "Old title");
-    renameManager.setMessageId(555);
+    renameManager.setMessageId("555");
     interactionManager.start({
       kind: "rename",
       expectedInput: "text",
@@ -195,7 +195,7 @@ describe("bot/commands/rename", () => {
 
   it("clears stale rename manager state when interaction is missing", async () => {
     renameManager.startWaiting("session-1", "D:/repo", "Old title");
-    renameManager.setMessageId(555);
+    renameManager.setMessageId("555");
 
     const ctx = createRenameTextContext("New title");
     const handled = await handleRenameTextAnswer(ctx);

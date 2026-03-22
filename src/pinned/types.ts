@@ -1,3 +1,5 @@
+import type { PlatformMessageRef } from "../platform/types.js";
+
 /**
  * Token information from AssistantMessage
  */
@@ -22,7 +24,7 @@ export interface FileChange {
  * State of the pinned status message
  */
 export interface PinnedMessageState {
-  messageId: number | null;
+  messageId: PlatformMessageRef | null;
   chatId: number | null;
   sessionId: string | null;
   sessionTitle: string;

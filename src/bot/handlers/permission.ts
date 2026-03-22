@@ -10,6 +10,7 @@ import { logger } from "../../utils/logger.js";
 import { safeBackgroundTask } from "../../utils/safe-background-task.js";
 import { markBotPermissionReply } from "../index.js";
 import { PermissionRequest, PermissionReply } from "../../permission/types.js";
+import { toMessageRef } from "../../platform/telegram/adapter.js";
 import type { I18nKey } from "../../i18n/en.js";
 import { t } from "../../i18n/index.js";
 
@@ -43,14 +44,14 @@ const PERMISSION_EMOJIS: Record<string, string> = {
   lsp: "🔧",
 };
 
-function getCallbackMessageId(ctx: Context): number | null {
+function getCallbackMessageId(ctx: Context): string | null {
   const message = ctx.callbackQuery?.message;
   if (!message || !("message_id" in message)) {
     return null;
   }
 
   const messageId = (message as { message_id?: number }).message_id;
-  return typeof messageId === "number" ? messageId : null;
+  return typeof messageId === "number" ? toMessageRef(messageId) : null;
 }
 
 function clearPermissionInteraction(reason: string): void {
@@ -155,7 +156,7 @@ async function handlePermissionReply(
   ctx: Context,
   reply: PermissionReply,
   requestID: string,
-  callbackMessageId: number | null,
+  callbackMessageId: string | null,
 ): Promise<void> {
   const currentProject = getCurrentProject();
   const currentSession = getCurrentSession();
@@ -247,7 +248,7 @@ export async function showPermissionRequest(
     });
 
     logger.debug(`[PermissionHandler] Message sent, messageId=${message.message_id}`);
-    permissionManager.startPermission(request, message.message_id);
+    permissionManager.startPermission(request, toMessageRef(message.message_id));
 
     syncPermissionInteractionState({
       requestID: request.id,
@@ -264,7 +265,7 @@ export async function showPermissionRequest(
         });
 
         logger.debug(`[PermissionHandler] Fallback message sent, messageId=${message.message_id}`);
-        permissionManager.startPermission(request, message.message_id);
+        permissionManager.startPermission(request, toMessageRef(message.message_id));
 
         syncPermissionInteractionState({
           requestID: request.id,

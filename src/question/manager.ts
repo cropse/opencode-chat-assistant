@@ -1,4 +1,5 @@
 import { Question, QuestionState, QuestionAnswer } from "./types.js";
+import type { PlatformMessageRef } from "../platform/types.js";
 import { logger } from "../utils/logger.js";
 
 class QuestionManager {
@@ -138,19 +139,19 @@ class QuestionManager {
     return this.state.questions.length;
   }
 
-  addMessageId(messageId: number): void {
+  addMessageId(messageId: PlatformMessageRef): void {
     this.state.messageIds.push(messageId);
   }
 
-  setActiveMessageId(messageId: number): void {
+  setActiveMessageId(messageId: PlatformMessageRef): void {
     this.state.activeMessageId = messageId;
   }
 
-  getActiveMessageId(): number | null {
+  getActiveMessageId(): PlatformMessageRef | null {
     return this.state.activeMessageId;
   }
 
-  isActiveMessage(messageId: number | null): boolean {
+  isActiveMessage(messageId: PlatformMessageRef | null): boolean {
     return (
       this.state.isActive &&
       this.state.activeMessageId !== null &&
@@ -174,7 +175,7 @@ class QuestionManager {
     return this.state.customInputQuestionIndex === questionIndex;
   }
 
-  getMessageIds(): number[] {
+  getMessageIds(): PlatformMessageRef[] {
     return [...this.state.messageIds];
   }
 

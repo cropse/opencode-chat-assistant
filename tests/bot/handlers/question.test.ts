@@ -91,13 +91,13 @@ describe("bot/handlers/question", () => {
     questionManager.startQuestions([QUESTION_ONE], "req-1");
     await showCurrentQuestion(api, 123);
 
-    expect(questionManager.getActiveMessageId()).toBe(100);
+    expect(questionManager.getActiveMessageId()).toBe("100");
 
     const state = interactionManager.getSnapshot();
     expect(state?.kind).toBe("question");
     expect(state?.expectedInput).toBe("callback");
     expect(state?.metadata.requestID).toBe("req-1");
-    expect(state?.metadata.messageId).toBe(100);
+    expect(state?.metadata.messageId).toBe("100");
     expect(state?.metadata.questionIndex).toBe(0);
   });
 
@@ -118,7 +118,7 @@ describe("bot/handlers/question", () => {
 
     expect(questionManager.getCustomAnswer(0)).toBe("My custom answer");
     expect(questionManager.getCurrentIndex()).toBe(1);
-    expect(questionManager.getActiveMessageId()).toBe(102);
+    expect(questionManager.getActiveMessageId()).toBe("102");
     expect(interactionManager.getSnapshot()?.expectedInput).toBe("callback");
 
     expect(api.deleteMessage).toHaveBeenCalledWith(123, 101);

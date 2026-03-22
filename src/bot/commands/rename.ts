@@ -4,17 +4,18 @@ import { getCurrentSession, setCurrentSession } from "../../session/manager.js";
 import { renameManager } from "../../rename/manager.js";
 import { interactionManager } from "../../interaction/manager.js";
 import { pinnedMessageManager } from "../../pinned/manager.js";
+import { toMessageRef, fromMessageRef } from "../../platform/telegram/adapter.js";
 import { logger } from "../../utils/logger.js";
 import { t } from "../../i18n/index.js";
 
-function getCallbackMessageId(ctx: Context): number | null {
+function getCallbackMessageId(ctx: Context): string | null {
   const message = ctx.callbackQuery?.message;
   if (!message || !("message_id" in message)) {
     return null;
   }
 
   const messageId = (message as { message_id?: number }).message_id;
-  return typeof messageId === "number" ? messageId : null;
+  return typeof messageId === "number" ? toMessageRef(messageId) : null;
 }
 
 function clearRenameInteraction(reason: string): void {
@@ -40,7 +41,7 @@ export async function renameCommand(ctx: CommandContext<Context>): Promise<void>
     });
 
     renameManager.startWaiting(currentSession.id, currentSession.directory, currentSession.title);
-    renameManager.setMessageId(message.message_id);
+    renameManager.setMessageId(toMessageRef(message.message_id));
     interactionManager.start({
       kind: "rename",
       expectedInput: "text",
@@ -152,7 +153,7 @@ export async function handleRenameTextAnswer(ctx: Context): Promise<boolean> {
 
     const messageId = renameManager.getMessageId();
     if (messageId && ctx.chat) {
-      await ctx.api.deleteMessage(ctx.chat.id, messageId).catch(() => {});
+      await ctx.api.deleteMessage(ctx.chat.id, fromMessageRef(messageId)).catch(() => {});
     }
 
     await ctx.reply(t("rename.success", { title: newTitle }));

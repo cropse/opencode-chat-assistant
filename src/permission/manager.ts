@@ -1,4 +1,5 @@
 import { PermissionRequest, PermissionState } from "./types.js";
+import type { PlatformMessageRef } from "../platform/types.js";
 import { logger } from "../utils/logger.js";
 
 class PermissionManager {
@@ -9,7 +10,7 @@ class PermissionManager {
   /**
    * Register a new permission request message
    */
-  startPermission(request: PermissionRequest, messageId: number): void {
+  startPermission(request: PermissionRequest, messageId: PlatformMessageRef): void {
     logger.debug(
       `[PermissionManager] startPermission: id=${request.id}, permission=${request.permission}, messageId=${messageId}`,
     );
@@ -26,9 +27,9 @@ class PermissionManager {
   }
 
   /**
-   * Get permission request by Telegram message ID
+   * Get permission request by platform message ref
    */
-  getRequest(messageId: number | null): PermissionRequest | null {
+  getRequest(messageId: PlatformMessageRef | null): PermissionRequest | null {
     if (messageId === null) {
       return null;
     }
@@ -37,37 +38,37 @@ class PermissionManager {
   }
 
   /**
-   * Get request ID for API reply by Telegram message ID
+   * Get request ID for API reply by platform message ref
    */
-  getRequestID(messageId: number | null): string | null {
+  getRequestID(messageId: PlatformMessageRef | null): string | null {
     return this.getRequest(messageId)?.id ?? null;
   }
 
   /**
-   * Get permission type (bash, edit, etc.) by message ID
+   * Get permission type (bash, edit, etc.) by message ref
    */
-  getPermissionType(messageId: number | null): string | null {
+  getPermissionType(messageId: PlatformMessageRef | null): string | null {
     return this.getRequest(messageId)?.permission ?? null;
   }
 
   /**
-   * Get patterns (commands/files) by message ID
+   * Get patterns (commands/files) by message ref
    */
-  getPatterns(messageId: number | null): string[] {
+  getPatterns(messageId: PlatformMessageRef | null): string[] {
     return this.getRequest(messageId)?.patterns ?? [];
   }
 
   /**
-   * Check if callback message ID belongs to active permission request
+   * Check if callback message ref belongs to active permission request
    */
-  isActiveMessage(messageId: number | null): boolean {
+  isActiveMessage(messageId: PlatformMessageRef | null): boolean {
     return messageId !== null && this.state.requestsByMessageId.has(messageId);
   }
 
   /**
-   * Get latest Telegram message ID
+   * Get latest platform message ref
    */
-  getMessageId(): number | null {
+  getMessageId(): PlatformMessageRef | null {
     const messageIds = this.getMessageIds();
     if (messageIds.length === 0) {
       return null;
@@ -77,16 +78,16 @@ class PermissionManager {
   }
 
   /**
-   * Get Telegram message IDs for all active requests
+   * Get platform message refs for all active requests
    */
-  getMessageIds(): number[] {
+  getMessageIds(): PlatformMessageRef[] {
     return Array.from(this.state.requestsByMessageId.keys());
   }
 
   /**
-   * Remove permission request by Telegram message ID
+   * Remove permission request by platform message ref
    */
-  removeByMessageId(messageId: number | null): PermissionRequest | null {
+  removeByMessageId(messageId: PlatformMessageRef | null): PermissionRequest | null {
     const request = this.getRequest(messageId);
     if (!request || messageId === null) {
       return null;

@@ -1,6 +1,7 @@
 import type { Context, NextFunction } from "grammy";
 import { resolveInteractionGuardDecision } from "../../interaction/guard.js";
 import type { BlockReason, InteractionKind } from "../../interaction/types.js";
+import { normalizeInput } from "../../platform/telegram/utils/normalize-input.js";
 import { logger } from "../../utils/logger.js";
 import { t } from "../../i18n/index.js";
 
@@ -72,7 +73,7 @@ function getInteractionBlockedMessage(
 }
 
 export async function interactionGuardMiddleware(ctx: Context, next: NextFunction): Promise<void> {
-  const decision = resolveInteractionGuardDecision(ctx);
+  const decision = resolveInteractionGuardDecision(normalizeInput(ctx));
 
   if (decision.allow) {
     await next();

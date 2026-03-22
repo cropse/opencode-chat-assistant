@@ -1,3 +1,4 @@
+import type { PlatformMessageRef } from "../platform/types.js";
 import { logger } from "../utils/logger.js";
 
 interface RenameState {
@@ -5,7 +6,7 @@ interface RenameState {
   sessionId: string | null;
   sessionDirectory: string | null;
   currentTitle: string | null;
-  messageId: number | null;
+  messageId: PlatformMessageRef | null;
 }
 
 class RenameManager {
@@ -28,15 +29,15 @@ class RenameManager {
     };
   }
 
-  setMessageId(messageId: number): void {
+  setMessageId(messageId: PlatformMessageRef): void {
     this.state.messageId = messageId;
   }
 
-  getMessageId(): number | null {
+  getMessageId(): PlatformMessageRef | null {
     return this.state.messageId;
   }
 
-  isActiveMessage(messageId: number | null): boolean {
+  isActiveMessage(messageId: PlatformMessageRef | null): boolean {
     return (
       this.state.isWaiting && this.state.messageId !== null && this.state.messageId === messageId
     );

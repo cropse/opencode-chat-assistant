@@ -1,4 +1,3 @@
-import type { Api } from "grammy";
 import { logger } from "../utils/logger.js";
 import { opencodeClient } from "../opencode/client.js";
 import { getCurrentSession } from "../session/manager.js";
@@ -11,9 +10,21 @@ import {
 import { getStoredModel } from "../model/manager.js";
 import type { FileChange, PinnedMessageState, TokensInfo } from "./types.js";
 import { t } from "../i18n/index.js";
+import { toMessageRef, fromMessageRef } from "../platform/telegram/adapter.js";
+
+interface PinnedApi {
+  sendMessage(chatId: number, text: string): Promise<{ message_id: number }>;
+  pinChatMessage(
+    chatId: number,
+    messageId: number,
+    options?: { disable_notification?: boolean },
+  ): Promise<unknown>;
+  editMessageText(chatId: number, messageId: number, text: string): Promise<unknown>;
+  unpinAllChatMessages(chatId: number): Promise<unknown>;
+}
 
 class PinnedMessageManager {
-  private api: Api | null = null;
+  private api: PinnedApi | null = null;
   private chatId: number | null = null;
   private state: PinnedMessageState = {
     messageId: null,
@@ -32,7 +43,7 @@ class PinnedMessageManager {
   /**
    * Initialize manager with bot API and chat ID
    */
-  initialize(api: Api, chatId: number): void {
+  initialize(api: PinnedApi, chatId: number): void {
     this.api = api;
     this.chatId = chatId;
 
@@ -617,19 +628,20 @@ class PinnedMessageManager {
       // Send new message
       const sentMessage = await this.api.sendMessage(this.chatId, text);
 
-      this.state.messageId = sentMessage.message_id;
+      const messageRef = toMessageRef(sentMessage.message_id);
+      this.state.messageId = messageRef;
       this.state.chatId = this.chatId;
       this.state.lastUpdated = Date.now();
 
       // Save to settings for persistence
-      setPinnedMessageId(sentMessage.message_id);
+      setPinnedMessageId(messageRef);
 
       // Pin the message (silently)
       await this.api.pinChatMessage(this.chatId, sentMessage.message_id, {
         disable_notification: true,
       });
 
-      logger.info(`[PinnedManager] Created and pinned message: ${sentMessage.message_id}`);
+      logger.info(`[PinnedManager] Created and pinned message: ${messageRef}`);
     } catch (err) {
       logger.error("[PinnedManager] Error creating pinned message:", err);
     }
@@ -646,7 +658,7 @@ class PinnedMessageManager {
     try {
       const text = this.formatMessage();
 
-      await this.api.editMessageText(this.chatId, this.state.messageId, text);
+      await this.api.editMessageText(this.chatId, fromMessageRef(this.state.messageId), text);
       this.state.lastUpdated = Date.now();
 
       logger.debug(`[PinnedManager] Updated pinned message: ${this.state.messageId}`);

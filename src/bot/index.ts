@@ -67,6 +67,7 @@ import { getStoredModel } from "../model/manager.js";
 import { opencodeClient } from "../opencode/client.js";
 import { shouldForwardAssistantReply } from "./utils/assistant-reply-forwarding.js";
 import { startMessagePolling, stopMessagePolling } from "../opencode/message-poller.js";
+import { fromMessageRef } from "../platform/telegram/adapter.js";
 import {
   startQuestionPoller,
   stopQuestionPoller,
@@ -338,7 +339,9 @@ async function ensureEventSubscription(directory: string): Promise<void> {
 
       const previousMessageIds = questionManager.getMessageIds();
       for (const messageId of previousMessageIds) {
-        await botInstance.api.deleteMessage(chatIdInstance, messageId).catch(() => {});
+        await botInstance.api
+          .deleteMessage(chatIdInstance, fromMessageRef(messageId))
+          .catch(() => {});
       }
 
       clearAllInteractionState("question_replaced_by_new_poll");
@@ -357,9 +360,11 @@ async function ensureEventSubscription(directory: string): Promise<void> {
     const messageIds = questionManager.getMessageIds();
     for (const messageId of messageIds) {
       if (chatIdInstance) {
-        await botInstance?.api.deleteMessage(chatIdInstance, messageId).catch((err) => {
-          logger.error(`[Bot] Failed to delete question message ${messageId}:`, err);
-        });
+        await botInstance?.api
+          .deleteMessage(chatIdInstance, fromMessageRef(messageId))
+          .catch((err) => {
+            logger.error(`[Bot] Failed to delete question message ${messageId}:`, err);
+          });
       }
     }
 
@@ -393,7 +398,11 @@ async function ensureEventSubscription(directory: string): Promise<void> {
     for (const messageId of messageIds) {
       if (botInstance && chatIdInstance) {
         botInstance.api
-          .editMessageText(chatIdInstance, messageId, t("question.answered_externally"))
+          .editMessageText(
+            chatIdInstance,
+            fromMessageRef(messageId),
+            t("question.answered_externally"),
+          )
           .then(() => {
             logger.info(
               `[Bot] Edited question message ${messageId}: replaced with "answered externally"`,
@@ -427,7 +436,11 @@ async function ensureEventSubscription(directory: string): Promise<void> {
     for (const messageId of messageIds) {
       if (botInstance && chatIdInstance) {
         botInstance.api
-          .editMessageText(chatIdInstance, messageId, t("permission.answered_externally"))
+          .editMessageText(
+            chatIdInstance,
+            fromMessageRef(messageId),
+            t("permission.answered_externally"),
+          )
           .catch((err) => {
             logger.debug(`[Bot] Failed to edit permission message ${messageId}:`, err);
           });
@@ -698,7 +711,9 @@ export async function autoSubscribeEvents(bot: Bot<Context>): Promise<void> {
     if (questionManager.isActive()) {
       const previousMessageIds = questionManager.getMessageIds();
       for (const messageId of previousMessageIds) {
-        await botInstance.api.deleteMessage(chatIdInstance, messageId).catch(() => {});
+        await botInstance.api
+          .deleteMessage(chatIdInstance, fromMessageRef(messageId))
+          .catch(() => {});
       }
       clearAllInteractionState("question_replaced_by_poller");
     }
@@ -733,13 +748,13 @@ export function createBot(): Bot<Context> {
 
   if (config.telegram.proxyUrl) {
     const proxyUrl = config.telegram.proxyUrl;
-    let agent;
+    const agent = proxyUrl.startsWith("socks")
+      ? new SocksProxyAgent(proxyUrl)
+      : new HttpsProxyAgent(proxyUrl);
 
     if (proxyUrl.startsWith("socks")) {
-      agent = new SocksProxyAgent(proxyUrl);
       logger.info(`[Bot] Using SOCKS proxy: ${proxyUrl.replace(/\/\/.*@/, "//***@")}`);
     } else {
-      agent = new HttpsProxyAgent(proxyUrl);
       logger.info(`[Bot] Using HTTP/HTTPS proxy: ${proxyUrl.replace(/\/\/.*@/, "//***@")}`);
     }
 

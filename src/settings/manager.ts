@@ -34,7 +34,7 @@ export interface Settings {
   currentSession?: SessionInfo;
   currentAgent?: string;
   currentModel?: ModelInfo;
-  pinnedMessageId?: number;
+  pinnedMessageId?: string;
   serverProcess?: ServerProcessInfo;
   sessionDirectoryCache?: SessionDirectoryCacheInfo;
 }
@@ -135,11 +135,11 @@ export function clearCurrentModel(): void {
   void writeSettingsFile(currentSettings);
 }
 
-export function getPinnedMessageId(): number | undefined {
+export function getPinnedMessageId(): string | undefined {
   return currentSettings.pinnedMessageId;
 }
 
-export function setPinnedMessageId(messageId: number): void {
+export function setPinnedMessageId(messageId: string): void {
   currentSettings.pinnedMessageId = messageId;
   void writeSettingsFile(currentSettings);
 }
@@ -185,10 +185,23 @@ export function __resetSettingsForTests(): void {
 export async function loadSettings(): Promise<void> {
   const loadedSettings = (await readSettingsFile()) as Settings & {
     toolMessagesIntervalSec?: unknown;
+    pinnedMessageId?: number | string; // Allow both for migration
   };
 
   if ("toolMessagesIntervalSec" in loadedSettings) {
     delete loadedSettings.toolMessagesIntervalSec;
+  }
+
+  // Migrate pinnedMessageId from number to string if needed
+  if (typeof loadedSettings.pinnedMessageId === "number") {
+    loadedSettings.pinnedMessageId = String(loadedSettings.pinnedMessageId);
+  }
+
+  // Persist any migrations
+  if (
+    "toolMessagesIntervalSec" in loadedSettings ||
+    typeof currentSettings.pinnedMessageId === "number"
+  ) {
     void writeSettingsFile(loadedSettings);
   }
 

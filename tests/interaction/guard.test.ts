@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { Context } from "grammy";
+import type { NormalizedInput } from "../../src/platform/types.js";
 import { resolveInteractionGuardDecision } from "../../src/interaction/guard.js";
 import { interactionManager } from "../../src/interaction/manager.js";
 
-function createContext({
+function createInput({
   text,
   callbackData,
   voice,
@@ -15,33 +15,24 @@ function createContext({
   voice?: boolean;
   audio?: boolean;
   photo?: boolean;
-}): Context {
-  const message: Record<string, unknown> = {};
-
+}): NormalizedInput {
+  if (callbackData !== undefined) {
+    return { type: "callback", callbackData };
+  }
   if (text !== undefined) {
-    message.text = text;
+    return { type: "text", text };
   }
-
-  if (voice) {
-    message.voice = { file_id: "voice-file-id" };
-  }
-
-  if (audio) {
-    message.audio = { file_id: "audio-file-id" };
-  }
-
   if (photo) {
-    message.photo = [
-      { file_id: "photo-file-id", file_unique_id: "unique-photo-id", width: 1280, height: 720 },
-    ];
+    return { type: "photo", fileId: "photo-file-id" };
   }
-
-  return {
-    message:
-      Object.keys(message).length > 0 ? (message as unknown as Context["message"]) : undefined,
-    callbackQuery:
-      callbackData !== undefined ? ({ data: callbackData } as Context["callbackQuery"]) : undefined,
-  } as Context;
+  if (voice) {
+    return { type: "voice", fileId: "voice-file-id" };
+  }
+  if (audio) {
+    // Audio is not a distinct type in NormalizedInput, treat as unknown (maps to "other" in guard)
+    return { type: "unknown" };
+  }
+  return { type: "unknown" };
 }
 
 describe("interaction guard", () => {
@@ -50,7 +41,7 @@ describe("interaction guard", () => {
   });
 
   it("allows input when there is no active interaction", () => {
-    const decision = resolveInteractionGuardDecision(createContext({ text: "hello" }));
+    const decision = resolveInteractionGuardDecision(createInput({ text: "hello" }));
 
     expect(decision.allow).toBe(true);
     expect(decision.state).toBeNull();
@@ -62,7 +53,7 @@ describe("interaction guard", () => {
       expectedInput: "callback",
     });
 
-    const decision = resolveInteractionGuardDecision(createContext({ text: "hello" }));
+    const decision = resolveInteractionGuardDecision(createInput({ text: "hello" }));
 
     expect(decision.allow).toBe(false);
     expect(decision.reason).toBe("expected_callback");
@@ -76,7 +67,7 @@ describe("interaction guard", () => {
     });
 
     const decision = resolveInteractionGuardDecision(
-      createContext({ callbackData: "model:foo:bar" }),
+      createInput({ callbackData: "model:foo:bar" }),
     );
 
     expect(decision.allow).toBe(true);
@@ -90,7 +81,7 @@ describe("interaction guard", () => {
       allowedCommands: ["/status"],
     });
 
-    const decision = resolveInteractionGuardDecision(createContext({ text: "/status" }));
+    const decision = resolveInteractionGuardDecision(createInput({ text: "/status" }));
 
     expect(decision.allow).toBe(true);
     expect(decision.command).toBe("/status");
@@ -103,7 +94,7 @@ describe("interaction guard", () => {
       allowedCommands: ["/status"],
     });
 
-    const decision = resolveInteractionGuardDecision(createContext({ text: "/start" }));
+    const decision = resolveInteractionGuardDecision(createInput({ text: "/start" }));
 
     expect(decision.allow).toBe(true);
     expect(decision.command).toBe("/start");
@@ -116,7 +107,7 @@ describe("interaction guard", () => {
       allowedCommands: ["/status"],
     });
 
-    const decision = resolveInteractionGuardDecision(createContext({ text: "/help" }));
+    const decision = resolveInteractionGuardDecision(createInput({ text: "/help" }));
 
     expect(decision.allow).toBe(false);
     expect(decision.reason).toBe("command_not_allowed");
@@ -135,7 +126,7 @@ describe("interaction guard", () => {
 
     vi.advanceTimersByTime(1001);
 
-    const decision = resolveInteractionGuardDecision(createContext({ text: "hello" }));
+    const decision = resolveInteractionGuardDecision(createInput({ text: "hello" }));
 
     expect(decision.allow).toBe(false);
     expect(decision.reason).toBe("expired");
@@ -148,9 +139,9 @@ describe("interaction guard", () => {
       expectedInput: "mixed",
     });
 
-    const decisionText = resolveInteractionGuardDecision(createContext({ text: "custom answer" }));
+    const decisionText = resolveInteractionGuardDecision(createInput({ text: "custom answer" }));
     const decisionCallback = resolveInteractionGuardDecision(
-      createContext({ callbackData: "question:select:0:1" }),
+      createInput({ callbackData: "question:select:0:1" }),
     );
 
     expect(decisionText.allow).toBe(true);
@@ -158,7 +149,7 @@ describe("interaction guard", () => {
   });
 
   it("allows voice input when there is no active interaction", () => {
-    const decision = resolveInteractionGuardDecision(createContext({ voice: true }));
+    const decision = resolveInteractionGuardDecision(createInput({ voice: true }));
 
     expect(decision.allow).toBe(true);
     expect(decision.state).toBeNull();
@@ -171,7 +162,7 @@ describe("interaction guard", () => {
       expectedInput: "text",
     });
 
-    const decision = resolveInteractionGuardDecision(createContext({ voice: true }));
+    const decision = resolveInteractionGuardDecision(createInput({ voice: true }));
 
     expect(decision.allow).toBe(false);
     expect(decision.reason).toBe("expected_text");
@@ -184,7 +175,7 @@ describe("interaction guard", () => {
       expectedInput: "mixed",
     });
 
-    const decision = resolveInteractionGuardDecision(createContext({ audio: true }));
+    const decision = resolveInteractionGuardDecision(createInput({ audio: true }));
 
     expect(decision.allow).toBe(false);
     expect(decision.reason).toBe("expected_text");
@@ -197,7 +188,7 @@ describe("interaction guard", () => {
       expectedInput: "callback",
     });
 
-    const decision = resolveInteractionGuardDecision(createContext({ text: "some text" }));
+    const decision = resolveInteractionGuardDecision(createInput({ text: "some text" }));
 
     expect(decision.allow).toBe(false);
     expect(decision.reason).toBe("expected_callback");
@@ -210,7 +201,7 @@ describe("interaction guard", () => {
       expectedInput: "callback",
     });
 
-    const decision = resolveInteractionGuardDecision(createContext({ text: "/status" }));
+    const decision = resolveInteractionGuardDecision(createInput({ text: "/status" }));
 
     expect(decision.allow).toBe(true);
     expect(decision.command).toBe("/status");
@@ -224,7 +215,7 @@ describe("interaction guard", () => {
       allowedCommands: ["/status"],
     });
 
-    const decision = resolveInteractionGuardDecision(createContext({ text: "/new" }));
+    const decision = resolveInteractionGuardDecision(createInput({ text: "/new" }));
 
     expect(decision.allow).toBe(false);
     expect(decision.reason).toBe("command_not_allowed");
@@ -238,7 +229,7 @@ describe("interaction guard", () => {
     });
 
     const decision = resolveInteractionGuardDecision(
-      createContext({ callbackData: "rename:cancel" }),
+      createInput({ callbackData: "rename:cancel" }),
     );
 
     expect(decision.allow).toBe(true);
@@ -252,9 +243,7 @@ describe("interaction guard", () => {
       expectedInput: "text",
     });
 
-    const decision = resolveInteractionGuardDecision(
-      createContext({ callbackData: "project:abc" }),
-    );
+    const decision = resolveInteractionGuardDecision(createInput({ callbackData: "project:abc" }));
 
     expect(decision.allow).toBe(false);
     expect(decision.reason).toBe("expected_text");
@@ -267,7 +256,7 @@ describe("interaction guard", () => {
       expectedInput: "text",
     });
 
-    const decision = resolveInteractionGuardDecision(createContext({ photo: true }));
+    const decision = resolveInteractionGuardDecision(createInput({ photo: true }));
 
     expect(decision.allow).toBe(false);
     expect(decision.reason).toBe("expected_text");
@@ -281,7 +270,7 @@ describe("interaction guard", () => {
       expectedInput: "mixed",
     });
 
-    const decision = resolveInteractionGuardDecision(createContext({ photo: true }));
+    const decision = resolveInteractionGuardDecision(createInput({ photo: true }));
 
     expect(decision.allow).toBe(false);
     expect(decision.reason).toBe("expected_text");
@@ -290,7 +279,7 @@ describe("interaction guard", () => {
   });
 
   it("allows photo input when there is no active interaction", () => {
-    const decision = resolveInteractionGuardDecision(createContext({ photo: true }));
+    const decision = resolveInteractionGuardDecision(createInput({ photo: true }));
 
     expect(decision.allow).toBe(true);
     expect(decision.state).toBeNull();
