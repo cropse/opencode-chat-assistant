@@ -2,13 +2,13 @@ import type { CodeFileData } from "./formatter.js";
 import { logger } from "../utils/logger.js";
 
 const DEFAULT_INTERVAL_SECONDS = 5;
-const TELEGRAM_MESSAGE_MAX_LENGTH = 4096;
 
 type SendTextCallback = (sessionId: string, text: string) => Promise<void>;
 type SendFileCallback = (sessionId: string, fileData: CodeFileData) => Promise<void>;
 
 interface ToolMessageBatcherOptions {
   intervalSeconds: number;
+  messageMaxLength: number;
   sendText: SendTextCallback;
   sendFile: SendFileCallback;
 }
@@ -48,6 +48,7 @@ function normalizeIntervalSeconds(value: number): number {
 
 export class ToolMessageBatcher {
   private intervalSeconds: number;
+  private readonly messageMaxLength: number;
   private readonly sendText: SendTextCallback;
   private readonly sendFile: SendFileCallback;
   private readonly queues: Map<string, QueueItem[]> = new Map();
@@ -57,6 +58,7 @@ export class ToolMessageBatcher {
 
   constructor(options: ToolMessageBatcherOptions) {
     this.intervalSeconds = normalizeIntervalSeconds(options.intervalSeconds);
+    this.messageMaxLength = options.messageMaxLength;
     this.sendText = options.sendText;
     this.sendFile = options.sendFile;
   }
@@ -260,7 +262,7 @@ export class ToolMessageBatcher {
 
     const flushItems = this.buildFlushItems(queuedItems);
     logger.debug(
-      `[ToolBatcher] Flushing ${queuedItems.length} queued items as ${flushItems.length} Telegram sends (session=${sessionId}, reason=${reason})`,
+      `[ToolBatcher] Flushing ${queuedItems.length} queued items as ${flushItems.length} platform sends (session=${sessionId}, reason=${reason})`,
     );
 
     for (const item of flushItems) {
@@ -350,7 +352,7 @@ export class ToolMessageBatcher {
 
   private packMessages(messages: string[]): string[] {
     const normalizedEntries = messages
-      .flatMap((message) => this.splitLongText(message, TELEGRAM_MESSAGE_MAX_LENGTH))
+      .flatMap((message) => this.splitLongText(message, this.messageMaxLength))
       .filter((entry) => entry.length > 0);
 
     if (normalizedEntries.length === 0) {
@@ -367,7 +369,7 @@ export class ToolMessageBatcher {
       }
 
       const candidate = `${current}\n\n${entry}`;
-      if (candidate.length <= TELEGRAM_MESSAGE_MAX_LENGTH) {
+      if (candidate.length <= this.messageMaxLength) {
         current = candidate;
         continue;
       }

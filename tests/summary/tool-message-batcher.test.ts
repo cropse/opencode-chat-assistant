@@ -19,6 +19,7 @@ describe("summary/tool-message-batcher", () => {
     const sendFile = vi.fn().mockResolvedValue(undefined);
     const batcher = new ToolMessageBatcher({
       intervalSeconds: 0,
+      messageMaxLength: 4096,
       sendText,
       sendFile,
     });
@@ -37,6 +38,7 @@ describe("summary/tool-message-batcher", () => {
     const sendFile = vi.fn().mockResolvedValue(undefined);
     const batcher = new ToolMessageBatcher({
       intervalSeconds: 0,
+      messageMaxLength: 4096,
       sendText,
       sendFile,
     });
@@ -58,6 +60,7 @@ describe("summary/tool-message-batcher", () => {
     const sendFile = vi.fn().mockResolvedValue(undefined);
     const batcher = new ToolMessageBatcher({
       intervalSeconds: 5,
+      messageMaxLength: 4096,
       sendText,
       sendFile,
     });
@@ -81,6 +84,7 @@ describe("summary/tool-message-batcher", () => {
     const sendFile = vi.fn().mockResolvedValue(undefined);
     const batcher = new ToolMessageBatcher({
       intervalSeconds: 5,
+      messageMaxLength: 4096,
       sendText,
       sendFile,
     });
@@ -102,6 +106,7 @@ describe("summary/tool-message-batcher", () => {
     const sendFile = vi.fn().mockResolvedValue(undefined);
     const batcher = new ToolMessageBatcher({
       intervalSeconds: 10,
+      messageMaxLength: 4096,
       sendText,
       sendFile,
     });
@@ -126,6 +131,7 @@ describe("summary/tool-message-batcher", () => {
     const sendFile = vi.fn().mockResolvedValue(undefined);
     const batcher = new ToolMessageBatcher({
       intervalSeconds: 5,
+      messageMaxLength: 4096,
       sendText,
       sendFile,
     });
@@ -146,6 +152,7 @@ describe("summary/tool-message-batcher", () => {
     const sendFile = vi.fn().mockResolvedValue(undefined);
     const batcher = new ToolMessageBatcher({
       intervalSeconds: 5,
+      messageMaxLength: 4096,
       sendText,
       sendFile,
     });
@@ -171,6 +178,7 @@ describe("summary/tool-message-batcher", () => {
     const sendFile = vi.fn().mockResolvedValue(undefined);
     const batcher = new ToolMessageBatcher({
       intervalSeconds: 5,
+      messageMaxLength: 4096,
       sendText,
       sendFile,
     });
@@ -194,6 +202,7 @@ describe("summary/tool-message-batcher", () => {
     const sendFile = vi.fn().mockResolvedValue(undefined);
     const batcher = new ToolMessageBatcher({
       intervalSeconds: 5,
+      messageMaxLength: 4096,
       sendText,
       sendFile,
     });
@@ -218,6 +227,7 @@ describe("summary/tool-message-batcher", () => {
     const sendFile = vi.fn().mockResolvedValue(undefined);
     const batcher = new ToolMessageBatcher({
       intervalSeconds: 5,
+      messageMaxLength: 4096,
       sendText,
       sendFile,
     });
@@ -251,6 +261,7 @@ describe("summary/tool-message-batcher", () => {
     });
     const batcher = new ToolMessageBatcher({
       intervalSeconds: 0,
+      messageMaxLength: 4096,
       sendText,
       sendFile,
     });

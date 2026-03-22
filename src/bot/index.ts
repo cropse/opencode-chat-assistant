@@ -49,7 +49,7 @@ import { keyboardManager } from "../keyboard/manager.js";
 import { subscribeToEvents } from "../opencode/events.js";
 import { summaryAggregator } from "../summary/aggregator.js";
 import { formatSummary, formatToolInfo } from "../summary/formatter.js";
-import { getAssistantParseMode } from "../platform/telegram/formatter.js";
+import { getAssistantParseMode, TELEGRAM_MESSAGE_LIMIT } from "../platform/telegram/formatter.js";
 import { ToolMessageBatcher } from "../summary/tool-message-batcher.js";
 import { getCurrentSession } from "../session/manager.js";
 import { ingestSessionInfoForCache } from "../session/cache-manager.js";
@@ -114,6 +114,7 @@ function prepareDocumentCaption(caption: string): string {
 
 const toolMessageBatcher = new ToolMessageBatcher({
   intervalSeconds: 5,
+  messageMaxLength: TELEGRAM_MESSAGE_LIMIT,
   sendText: async (sessionId, text) => {
     if (!botInstance || !chatIdInstance) {
       return;
