@@ -18,6 +18,7 @@ import { logger } from "../../utils/logger.js";
 import { safeBackgroundTask } from "../../utils/safe-background-task.js";
 import { config } from "../../config.js";
 import { getDateLocale, t } from "../../i18n/index.js";
+import { TELEGRAM_MESSAGE_LIMIT } from "../../platform/telegram/formatter.js";
 
 const SESSION_CALLBACK_PREFIX = "session:";
 const SESSION_PAGE_CALLBACK_PREFIX = "session:page:";
@@ -376,7 +377,6 @@ type SessionPreviewItem = {
 
 const PREVIEW_MESSAGES_LIMIT = 6;
 const PREVIEW_ITEM_MAX_LENGTH = 420;
-const TELEGRAM_MESSAGE_LIMIT = 4096;
 
 function extractTextParts(parts: Array<{ type: string; text?: string }>): string | null {
   const textParts = parts
