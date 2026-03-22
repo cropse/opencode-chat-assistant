@@ -3,7 +3,7 @@ import type { CodeFileData } from "./formatter.js";
 import { normalizePathForDisplay, prepareCodeFile } from "./formatter.js";
 import type { Question } from "../question/types.js";
 import type { PermissionRequest } from "../permission/types.js";
-import type { FileChange } from "../pinned/types.js";
+import type { FileChange } from "../platform/telegram/pinned-types.js";
 import { logger } from "../utils/logger.js";
 import { getCurrentProject } from "../settings/manager.js";
 import { markMessageProcessed, clearProcessedMessages } from "../opencode/processed-messages.js";

@@ -1,16 +1,16 @@
-import { logger } from "../utils/logger.js";
-import { opencodeClient } from "../opencode/client.js";
-import { getCurrentSession } from "../session/manager.js";
+import { logger } from "../../utils/logger.js";
+import { opencodeClient } from "../../opencode/client.js";
+import { getCurrentSession } from "../../session/manager.js";
 import {
   getCurrentProject,
   getPinnedMessageId,
   setPinnedMessageId,
   clearPinnedMessageId,
-} from "../settings/manager.js";
-import { getStoredModel } from "../model/manager.js";
-import type { FileChange, PinnedMessageState, TokensInfo } from "./types.js";
-import { t } from "../i18n/index.js";
-import { toMessageRef, fromMessageRef } from "../platform/telegram/adapter.js";
+} from "../../settings/manager.js";
+import { getStoredModel } from "../../model/manager.js";
+import type { FileChange, PinnedMessageState, TokensInfo } from "./pinned-types.js";
+import { t } from "../../i18n/index.js";
+import { toMessageRef, fromMessageRef } from "./adapter.js";
 
 interface PinnedApi {
   sendMessage(chatId: number, text: string): Promise<{ message_id: number }>;

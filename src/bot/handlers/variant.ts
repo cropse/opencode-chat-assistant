@@ -10,7 +10,7 @@ import { getStoredModel } from "../../model/manager.js";
 import { getStoredAgent } from "../../agent/manager.js";
 import { logger } from "../../utils/logger.js";
 import { keyboardManager } from "../../platform/telegram/keyboard-manager.js";
-import { pinnedMessageManager } from "../../pinned/manager.js";
+import { pinnedMessageManager } from "../../platform/telegram/pinned-manager.js";
 import { createMainKeyboard } from "../utils/keyboard.js";
 import {
   clearActiveInlineMenu,

@@ -5,7 +5,7 @@ import { getProjects } from "../../project/manager.js";
 import { syncSessionDirectoryCache } from "../../session/cache-manager.js";
 import { clearSession } from "../../session/manager.js";
 import { summaryAggregator } from "../../summary/aggregator.js";
-import { pinnedMessageManager } from "../../pinned/manager.js";
+import { pinnedMessageManager } from "../../platform/telegram/pinned-manager.js";
 import { keyboardManager } from "../../platform/telegram/keyboard-manager.js";
 import { getStoredAgent } from "../../agent/manager.js";
 import { getStoredModel } from "../../model/manager.js";

@@ -61,7 +61,7 @@ vi.mock("../../../src/platform/telegram/keyboard-manager.js", () => ({
   },
 }));
 
-vi.mock("../../../src/pinned/manager.js", () => ({
+vi.mock("../../../src/platform/telegram/pinned-manager.js", () => ({
   pinnedMessageManager: {
     isInitialized: mocked.pinnedIsInitializedMock,
     initialize: mocked.pinnedInitializeMock,

@@ -56,7 +56,7 @@ import { ingestSessionInfoForCache } from "../session/cache-manager.js";
 import { getCurrentProject } from "../settings/manager.js";
 import { logger } from "../utils/logger.js";
 import { safeBackgroundTask } from "../utils/safe-background-task.js";
-import { pinnedMessageManager } from "../pinned/manager.js";
+import { pinnedMessageManager } from "../platform/telegram/pinned-manager.js";
 import { t } from "../i18n/index.js";
 import { processUserPrompt } from "./handlers/prompt.js";
 import { handleVoiceMessage } from "./handlers/voice.js";

@@ -70,7 +70,7 @@ export async function resetSingletonState(): Promise<void> {
     import("../../src/interaction/manager.js"),
     import("../../src/summary/aggregator.js"),
     import("../../src/platform/telegram/keyboard-manager.js"),
-    import("../../src/pinned/manager.js"),
+    import("../../src/platform/telegram/pinned-manager.js"),
     import("../../src/process/manager.js"),
     import("../../src/opencode/events.js"),
     import("../../src/session/cache-manager.js"),

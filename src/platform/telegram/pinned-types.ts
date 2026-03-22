@@ -1,4 +1,4 @@
-import type { PlatformMessageRef } from "../platform/types.js";
+import type { PlatformMessageRef } from "../types.js";
 
 /**
  * Token information from AssistantMessage

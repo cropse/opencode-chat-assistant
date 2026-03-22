@@ -56,7 +56,7 @@ vi.mock("../../../src/variant/manager.js", () => ({
   formatVariantForButton: mocked.formatVariantForButtonMock,
 }));
 
-vi.mock("../../../src/pinned/manager.js", () => ({
+vi.mock("../../../src/platform/telegram/pinned-manager.js", () => ({
   pinnedMessageManager: {
     isInitialized: mocked.pinnedIsInitializedMock,
     initialize: mocked.pinnedInitializeMock,

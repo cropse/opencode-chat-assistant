@@ -5,7 +5,7 @@ import { setCurrentSession, SessionInfo } from "../../session/manager.js";
 import { getCurrentProject } from "../../settings/manager.js";
 import { clearAllInteractionState } from "../../interaction/cleanup.js";
 import { summaryAggregator } from "../../summary/aggregator.js";
-import { pinnedMessageManager } from "../../pinned/manager.js";
+import { pinnedMessageManager } from "../../platform/telegram/pinned-manager.js";
 import { keyboardManager } from "../../platform/telegram/keyboard-manager.js";
 import { selectAgent, fetchSessionAgentAndModel } from "../../agent/manager.js";
 import { selectModel } from "../../model/manager.js";
