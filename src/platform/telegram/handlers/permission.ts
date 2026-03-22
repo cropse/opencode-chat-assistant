@@ -1,4 +1,5 @@
-import { Context, InlineKeyboard } from "grammy";
+import { InlineKeyboard } from "grammy";
+import type { Context } from "grammy";
 import { permissionManager } from "../../../permission/manager.js";
 import { opencodeClient } from "../../../opencode/client.js";
 import { getCurrentProject } from "../../../settings/manager.js";
@@ -8,8 +9,8 @@ import { interactionManager } from "../../../interaction/manager.js";
 import { isTelegramMarkdownParseError } from "../utils/send-with-markdown-fallback.js";
 import { logger } from "../../../utils/logger.js";
 import { safeBackgroundTask } from "../../../utils/safe-background-task.js";
-import { markBotPermissionReply } from "../../../bot/index.js";
-import { PermissionRequest, PermissionReply } from "../../../permission/types.js";
+import { markBotPermissionReply } from "../bot.js";
+import type { PermissionRequest, PermissionReply } from "../../../permission/types.js";
 import { toMessageRef } from "../adapter.js";
 import type { I18nKey } from "../../../i18n/en.js";
 import { t } from "../../../i18n/index.js";
