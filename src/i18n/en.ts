@@ -383,6 +383,10 @@ export const en = {
   "skills.empty": "🛠 No skills available for this project.",
   "skills.title": "Available Skills",
   "skills.error": "🔴 Failed to load skills.",
+
+  "discord.auth.unauthorized_channel": "⛔ You don't have the required role to use this bot.",
+  "discord.auth.unauthorized_dm": "⛔ You are not authorized for DM access.",
+  "discord.auth.session_busy": "⏳ Session is busy — {user} is currently working.",
 } as const;
 
 export type I18nKey = keyof typeof en;

@@ -386,4 +386,9 @@ export const ru: I18nDictionary = {
   "skills.empty": "🛠 Нет доступных навыков для этого проекта.",
   "skills.title": "Доступные навыки",
   "skills.error": "🔴 Ошибка при загрузке навыков.",
+
+  "discord.auth.unauthorized_channel":
+    "⛔ У вас нет необходимой роли для использования этого бота.",
+  "discord.auth.unauthorized_dm": "⛔ Вы не авторизованы для доступа через DM.",
+  "discord.auth.session_busy": "⏳ Сессия занята — {user} сейчас работает.",
 };

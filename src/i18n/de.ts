@@ -399,4 +399,9 @@ export const de: I18nDictionary = {
   "skills.empty": "🛠 Keine Skills für dieses Projekt verfügbar.",
   "skills.title": "Verfügbare Skills",
   "skills.error": "🔴 Fehler beim Laden der Skills.",
+
+  "discord.auth.unauthorized_channel":
+    "⛔ Du hast nicht die erforderliche Rolle, um diesen Bot zu nutzen.",
+  "discord.auth.unauthorized_dm": "⛔ Du bist nicht für den DM-Zugang autorisiert.",
+  "discord.auth.session_busy": "⏳ Sitzung ist beschäftigt — {user} arbeitet gerade.",
 };

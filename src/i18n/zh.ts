@@ -350,4 +350,8 @@ export const zh: I18nDictionary = {
   "skills.empty": "🛠 此项目没有可用的技能。",
   "skills.title": "可用技能",
   "skills.error": "🔴 加载技能失败。",
+
+  "discord.auth.unauthorized_channel": "⛔ 你没有使用此机器人所需的角色。",
+  "discord.auth.unauthorized_dm": "⛔ 你未获授权使用 DM 访问。",
+  "discord.auth.session_busy": "⏳ 会话正忙 — {user} 正在进行工作。",
 };
