@@ -45,9 +45,19 @@ Assistant replies, question prompts, permission requests, and status messages no
 
 Users who `git clone` this repo now get the same interactive setup wizard on first launch that `npx` users get. No need to manually create `config.yaml`.
 
----
+### Discord Platform Support
 
-## Features (from upstream)
+This fork adds Discord as a second supported platform alongside Telegram. Use Discord for team/community access with role-based authorization.
+
+- **Role-based access** — users with a configured Discord role can send prompts in channels
+- **DM whitelist** — specific user IDs can interact with the bot via direct messages
+- **Session owner lock** — one operator at a time, others see "session busy" message
+- **14 slash commands** — all bot functions available as `/command` in Discord
+- **Status embed** — pinned message with session info, model, and token usage
+
+See [Discord Setup Guide](docs/DISCORD_SETUP.md) for step-by-step instructions.
+
+---
 
 All original features from the upstream project are included:
 
@@ -179,6 +189,19 @@ The `config.yaml` file location depends on how you run the bot:
 | `stt.model`                      | STT model name passed to `/audio/transcriptions`                                                             |    No    | `whisper-large-v3-turbo` |
 | `stt.language`                   | Optional language hint (empty = provider auto-detect)                                                        |    No    | —                        |
 | `server.logLevel`                | Log level (`debug`, `info`, `warn`, `error`)                                                                 |    No    | `info`                   |
+
+### Discord Platform Configuration
+
+| Key                      |   Required   | Description                                                   |
+| ------------------------ | :----------: | ------------------------------------------------------------- |
+| `platform`               |      No      | `"telegram"` (default) or `"discord"`                         |
+| `discord.token`          | When discord | Bot token from Discord Developer Portal                       |
+| `discord.guildId`        | When discord | Discord server ID (Enable Developer Mode, right-click server) |
+| `discord.channelId`      |      No      | Restrict bot to a specific channel                            |
+| `discord.allowedRoleIds` | When discord | Comma-separated role IDs for channel access                   |
+| `discord.allowedUserIds` |      No      | Comma-separated user IDs for DM access                        |
+
+See [docs/DISCORD_SETUP.md](docs/DISCORD_SETUP.md) for step-by-step Discord setup instructions.
 
 > **Keep your `config.yaml` file private.** It contains your bot token. Never commit it to version control.
 

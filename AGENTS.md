@@ -287,6 +287,30 @@ src/
     logger.ts               — Level-based logger (respects LOG_LEVEL, timestamp prefix)
     error-format.ts         — Error detail extraction (stack traces, JSON, truncation)
     safe-background-task.ts — Fire-and-forget async task runner with success/error hooks
+
+  platform/
+    types.ts                — PlatformAdapter interface, PlatformInfo, FileChange, TokensInfo (shared)
+    index.ts                — Platform factory: createPlatformBot("telegram" | "discord")
+
+    telegram/
+      adapter.ts            — TelegramAdapter implementing PlatformAdapter (uses grammY Api)
+      bot.ts                — Telegram bot orchestrator, SSE wiring, event handlers (main orchestrator)
+      formatter.ts          — Telegram MarkdownV2 formatting, TELEGRAM_MESSAGE_LIMIT, TELEGRAM_FORMAT_CONFIG
+      pinned-manager.ts     — Pinned status message management with debounce
+      keyboard-manager.ts   — Reply keyboard state and debounced updates
+      commands/             — 14 Telegram command handlers (/status, /new, /abort, etc.)
+      handlers/             — Inline callbacks (question, permission, model, agent, variant, context)
+      middleware/           — Auth (user ID whitelist), interaction guard, unknown command
+
+    discord/
+      adapter.ts            — DiscordAdapter implementing PlatformAdapter (uses discord.js Client)
+      bot.ts                — Discord bot orchestrator, SSE wiring, slash command routing
+      formatter.ts          — Discord Markdown formatting (2000 char limit), EmbedBuilder helpers
+      pinned-manager.ts     — Pinned status embed manager with debounce
+      commands/             — 14 Discord slash command handlers + guild registration
+      handlers/             — Button interactions (question/permission) + select menus (model/agent/variant)
+      middleware/
+        auth.ts             — Role check (guild), DM whitelist, session owner lock
 ```
 
 ### Tests (`tests/`)
