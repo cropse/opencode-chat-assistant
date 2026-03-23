@@ -1,8 +1,11 @@
-# OpenCode Telegram Bot Configuration
+# OpenCode Telegram/Discord Bot Configuration
 # Copy this file to config.yaml and fill in your values.
 # Values with colons (like bot tokens) must be quoted.
+#
+# Platform selection: Set PLATFORM=telegram or PLATFORM=discord in environment.
+# Default is telegram. See Discord section below for Discord configuration.
 
-# Telegram settings (required)
+# Telegram settings (required when PLATFORM=telegram)
 telegram:
   # Bot token from @BotFather (e.g., "123456:ABCdef...")
   token: ""
@@ -61,3 +64,17 @@ telegram:
 #   apiKey: ""
 #   model: "whisper-large-v3-turbo"
 #   language: ""
+
+# Discord platform settings (required when PLATFORM=discord)
+# Set PLATFORM=discord in environment and configure these values.
+# discord:
+#   # Bot token from Discord Developer Portal (https://discord.com/developers/applications)
+#   token: ""
+#   # Guild (server) ID where slash commands will be registered
+#   guildId: ""
+#   # Default channel ID for messages (optional)
+#   channelId: ""
+#   # Comma-separated role IDs that can use the bot
+#   allowedRoleIds: ""
+#   # Comma-separated user IDs that can use the bot (fallback if no roles match)
+#   allowedUserIds: ""

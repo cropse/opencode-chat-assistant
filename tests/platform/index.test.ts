@@ -54,10 +54,8 @@ describe("platform/index", () => {
       expect(mockBot.api.deleteWebhook).toHaveBeenCalledTimes(1);
     });
 
-    it("throws Error with correct message for discord platform", () => {
-      expect(() => createPlatformBot("discord")).toThrow(
-        "Discord platform not yet implemented — see Task 13",
-      );
+    it("throws Error with correct message for unknown platform", () => {
+      expect(() => createPlatformBot("unknown" as "telegram")).toThrow("Unknown platform: unknown");
     });
   });
 

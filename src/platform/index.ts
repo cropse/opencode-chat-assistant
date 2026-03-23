@@ -18,7 +18,25 @@ export function createPlatformBot(platform: Platform): PlatformBot {
   if (platform === "telegram") {
     return createTelegramBot();
   }
-  throw new Error("Discord platform not yet implemented — see Task 13");
+  if (platform === "discord") {
+    return createDiscordPlatformBot();
+  }
+  throw new Error(`Unknown platform: ${platform}`);
+}
+
+/**
+ * Creates a Discord bot lifecycle wrapper.
+ * Calls createDiscordBot() and calls autoSubscribeDiscordEvents before login.
+ */
+function createDiscordPlatformBot(): PlatformBot {
+  return {
+    start: async () => {
+      const { createDiscordBot, autoSubscribeDiscordEvents } = await import("./discord/bot.js");
+      const client = createDiscordBot();
+      await autoSubscribeDiscordEvents(client);
+      await client.login(process.env.DISCORD_BOT_TOKEN);
+    },
+  };
 }
 
 /**

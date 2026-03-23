@@ -1,7 +1,7 @@
 {
   "name": "@ih-chung/opencode-telegram-bot",
   "version": "1.0.0",
-  "description": "Telegram bot client for OpenCode to run and monitor coding tasks from chat.",
+  "description": "Telegram and Discord bot client for OpenCode to run and monitor coding tasks from chat.",
   "type": "module",
   "main": "./dist/index.js",
   "bin": {
@@ -42,6 +42,8 @@
     "telegram",
     "telegram-bot",
     "grammy",
+    "discord",
+    "discord-bot",
     "developer-tools",
     "cli"
   ],
