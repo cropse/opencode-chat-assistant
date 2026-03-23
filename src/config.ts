@@ -212,38 +212,6 @@ try {
   // Ignore file not found, rawConfig remains {}
 }
 
-// Platform is read directly from env since it's used for validation
-const platformFromEnv = process.env.PLATFORM;
-const platform: Platform = (platformFromEnv?.toLowerCase() as Platform) || "telegram";
-
 export const config = buildConfig(rawConfig);
-
-// Validate platform-specific requirements
-if (platform === "telegram") {
-  if (!process.env.TELEGRAM_BOT_TOKEN) {
-    throw new Error("Missing required environment variable: TELEGRAM_BOT_TOKEN");
-  }
-  if (!process.env.TELEGRAM_ALLOWED_USER_ID) {
-    throw new Error("Missing required environment variable: TELEGRAM_ALLOWED_USER_ID");
-  }
-} else if (platform === "discord") {
-  if (!process.env.DISCORD_BOT_TOKEN) {
-    throw new Error("Missing required environment variable: DISCORD_BOT_TOKEN");
-  }
-  if (!process.env.DISCORD_GUILD_ID) {
-    throw new Error("Missing required environment variable: DISCORD_GUILD_ID");
-  }
-
-  const hasAllowedRoleIds =
-    (process.env.DISCORD_ALLOWED_ROLE_IDS ?? "").split(",").filter((s) => s.trim()).length > 0;
-  const hasAllowedUserIds =
-    (process.env.DISCORD_ALLOWED_USER_IDS ?? "").split(",").filter((s) => s.trim()).length > 0;
-
-  if (!hasAllowedRoleIds && !hasAllowedUserIds) {
-    throw new Error(
-      "Discord platform requires at least one of DISCORD_ALLOWED_ROLE_IDS or DISCORD_ALLOWED_USER_IDS",
-    );
-  }
-}
 
 setRuntimeLocale(config.bot.locale);

@@ -1,6 +1,52 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { createPlatformBot } from "../../src/platform/index.js";
 
+// Mock config module to provide required config values
+vi.mock("../../src/config.js", () => ({
+  config: {
+    platform: "telegram",
+    telegram: {
+      token: "test-telegram-token",
+      allowedUserId: 123456789,
+      proxyUrl: "",
+    },
+    opencode: {
+      apiUrl: "http://localhost:4096",
+      username: "opencode",
+      password: "",
+    },
+    server: {
+      logLevel: "info",
+    },
+    bot: {
+      sessionsListLimit: 10,
+      projectsListLimit: 10,
+      modelsListLimit: 10,
+      locale: "en",
+      serviceMessagesIntervalSec: 5,
+      hideThinkingMessages: false,
+      hideToolCallMessages: false,
+      messageFormatMode: "markdown",
+    },
+    files: {
+      maxFileSizeKb: 100,
+    },
+    stt: {
+      apiUrl: "",
+      apiKey: "",
+      model: "whisper-large-v3-turbo",
+      language: "",
+    },
+    discord: {
+      token: "test-discord-token",
+      guildId: "",
+      channelId: "",
+      allowedRoleIds: [],
+      allowedUserIds: [],
+    },
+  },
+}));
+
 // Mock discord bot module
 vi.mock("../../src/platform/discord/bot.js", () => ({
   createDiscordBot: vi.fn(),
@@ -66,7 +112,7 @@ describe("platform/integration", () => {
       expect(autoSubscribeDiscordEvents).toHaveBeenCalledTimes(1);
       expect(autoSubscribeDiscordEvents).toHaveBeenCalledWith(mockClient);
       expect(mockClient.login).toHaveBeenCalledTimes(1);
-      expect(mockClient.login).toHaveBeenCalledWith(process.env.DISCORD_BOT_TOKEN);
+      expect(mockClient.login).toHaveBeenCalledWith("test-discord-token");
     });
 
     it("throws for unknown platform", () => {

@@ -1,4 +1,5 @@
 import type { Platform } from "../config.js";
+import { config } from "../config.js";
 import { logger } from "../utils/logger.js";
 
 /**
@@ -34,7 +35,7 @@ function createDiscordPlatformBot(): PlatformBot {
       const { createDiscordBot, autoSubscribeDiscordEvents } = await import("./discord/bot.js");
       const client = createDiscordBot();
       await autoSubscribeDiscordEvents(client);
-      await client.login(process.env.DISCORD_BOT_TOKEN);
+      await client.login(config.discord.token);
     },
   };
 }

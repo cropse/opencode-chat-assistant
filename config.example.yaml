@@ -2,7 +2,7 @@
 # Copy this file to config.yaml and fill in your values.
 # Values with colons (like bot tokens) must be quoted.
 #
-# Platform selection: Set PLATFORM=telegram or PLATFORM=discord in environment.
+# Platform selection: Set platform: telegram or platform: discord below.
 # Default is telegram. See Discord section below for Discord configuration.
 
 # Telegram settings (required when PLATFORM=telegram)
@@ -65,8 +65,8 @@ telegram:
 #   model: "whisper-large-v3-turbo"
 #   language: ""
 
-# Discord platform settings (required when PLATFORM=discord)
-# Set PLATFORM=discord in environment and configure these values.
+# Discord platform settings (required when platform: discord)
+# Set platform: discord above and configure these values.
 # discord:
 #   # Bot token from Discord Developer Portal (https://discord.com/developers/applications)
 #   token: ""
