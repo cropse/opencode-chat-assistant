@@ -43,7 +43,11 @@ import { handleAgentCommand } from "./commands/agent.js";
 import { handleVariantCommand } from "./commands/variant.js";
 
 // Interaction handlers
-import { showDiscordQuestion, handleQuestionButtonInteraction } from "./handlers/question.js";
+import {
+  showDiscordQuestion,
+  handleQuestionButtonInteraction,
+  handleQuestionModalSubmit,
+} from "./handlers/question.js";
 import {
   showDiscordPermissionRequest,
   handlePermissionButtonInteraction,
@@ -352,6 +356,15 @@ export function createDiscordBot(): Client {
   });
 
   client.on(Events.InteractionCreate, async (interaction) => {
+    // Handle modal submissions (custom question answers)
+    if (interaction.isModalSubmit()) {
+      const customId = interaction.customId;
+      if (customId.startsWith("question:modal:")) {
+        await handleQuestionModalSubmit(interaction, adapterInstance!);
+      }
+      return;
+    }
+
     // Handle button interactions (questions, permissions, agent selection)
     if (interaction.isButton()) {
       const customId = interaction.customId;

@@ -1,7 +1,14 @@
 /**
  * Discord question handler - renders question polls as Discord buttons
  */
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle } from "discord.js";
+import {
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  ModalBuilder,
+  TextInputBuilder,
+  TextInputStyle,
+} from "discord.js";
 import { questionManager } from "../../../question/manager.js";
 import { opencodeClient } from "../../../opencode/client.js";
 import { getCurrentProject, getCurrentSession } from "../../../settings/manager.js";
@@ -193,29 +200,28 @@ export async function handleQuestionButtonInteraction(
     return;
   }
 
-  // Acknowledge the interaction
-  if (typeof interaction.deferUpdate === "function") {
-    await interaction.deferUpdate();
+  const parts = customId.split(":");
+  const action = parts[1];
+  const questionIndex = parseInt(parts[2], 10);
+  const optionIndex = parseInt(parts[3], 10);
+
+  // showModal requires the interaction to NOT be deferred/replied yet
+  // so we defer only for non-modal actions
+  if (action !== "custom") {
+    if (typeof interaction.deferUpdate === "function") {
+      await interaction.deferUpdate();
+    }
   }
 
   logger.debug(`[DiscordQuestionHandler] Received button: ${customId}`);
 
   if (!questionManager.isActive()) {
     clearQuestionInteraction("question_inactive_callback");
-    // Reply with ephemeral message if possible
     if (typeof interaction.reply === "function") {
-      await interaction.reply({
-        content: t("question.inactive_callback"),
-        ephemeral: true,
-      });
+      await interaction.reply({ content: t("question.inactive_callback"), ephemeral: true });
     }
     return;
   }
-
-  const parts = customId.split(":");
-  const action = parts[1];
-  const questionIndex = parseInt(parts[2], 10);
-  const optionIndex = parseInt(parts[3], 10);
 
   if (Number.isNaN(questionIndex) || questionIndex !== questionManager.getCurrentIndex()) {
     if (typeof interaction.reply === "function") {
@@ -239,13 +245,31 @@ export async function handleQuestionButtonInteraction(
         await handleSubmitAnswer(adapter, questionIndex);
         break;
       case "custom":
-        // Discord doesn't support text input from buttons easily
-        // For now, just acknowledge and let user know to select options
-        if (typeof interaction.reply === "function") {
-          await interaction.reply({
-            content: t("question.enter_custom_callback"),
-            ephemeral: true,
-          });
+        {
+          // Open a Discord Modal so the user can type a free-form answer
+          const modal = new ModalBuilder()
+            .setCustomId(`question:modal:${questionIndex}`)
+            .setTitle(t("question.button.custom"));
+
+          const question = questionManager.getCurrentQuestion();
+          const placeholder = question?.question.substring(0, 100) ?? "Your answer";
+
+          const textInput = new TextInputBuilder()
+            .setCustomId("custom_answer")
+            .setLabel(t("question.button.custom"))
+            .setStyle(TextInputStyle.Paragraph)
+            .setPlaceholder(placeholder)
+            .setRequired(true)
+            .setMaxLength(1000);
+
+          modal.addComponents(new ActionRowBuilder<TextInputBuilder>().addComponents(textInput));
+
+          // showModal must be called on the original interaction (NOT deferUpdate'd)
+          // We haven't deferUpdate'd yet at this point — but we did at line ~197.
+          // So use followUp for acknowledgement instead.
+          if (typeof interaction.showModal === "function") {
+            await interaction.showModal(modal);
+          }
         }
         break;
       case "cancel":
@@ -449,4 +473,43 @@ function formatAnswersSummary(answers: Array<{ question: string; answer: string 
   });
 
   return summary;
+}
+
+/**
+ * Handle modal submit interaction for custom answer input
+ */
+export async function handleQuestionModalSubmit(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  interaction: any,
+  adapter: DiscordAdapter,
+): Promise<void> {
+  const customId = interaction?.customId;
+  if (!customId || !customId.startsWith("question:modal:")) return;
+
+  const questionIndex = parseInt(customId.split(":")[2], 10);
+  if (Number.isNaN(questionIndex)) return;
+
+  // Acknowledge the modal submission
+  if (typeof interaction.deferUpdate === "function") {
+    await interaction.deferUpdate();
+  } else if (typeof interaction.reply === "function") {
+    await interaction.reply({ content: "✅", ephemeral: true });
+  }
+
+  const customAnswer = interaction?.fields?.getTextInputValue("custom_answer") ?? "";
+  if (!customAnswer.trim()) return;
+
+  logger.info(
+    `[DiscordQuestionHandler] Modal custom answer for question ${questionIndex}: ${customAnswer.substring(0, 80)}...`,
+  );
+
+  questionManager.setCustomAnswer(questionIndex, customAnswer.trim());
+
+  // Delete the question message and advance
+  const activeMessageId = questionManager.getActiveMessageId();
+  if (activeMessageId) {
+    await adapter.deleteMessage(activeMessageId).catch(() => {});
+  }
+
+  await showNextQuestion(adapter);
 }
