@@ -352,25 +352,35 @@ export function createDiscordBot(): Client {
   });
 
   client.on(Events.InteractionCreate, async (interaction) => {
-    // Handle button interactions (questions, permissions)
+    // Handle button interactions (questions, permissions, agent selection)
     if (interaction.isButton()) {
       const customId = interaction.customId;
       if (customId.startsWith("question:")) {
         await handleQuestionButtonInteraction(interaction, adapterInstance!);
       } else if (customId.startsWith("permission:")) {
         await handlePermissionButtonInteraction(interaction, adapterInstance!);
+      } else if (customId.startsWith("agent:")) {
+        const { handleAgentButtonInteraction } = await import("./handlers/agent.js");
+        await handleAgentButtonInteraction(interaction, adapterInstance!);
       }
       return;
     }
 
-    // Handle select menu interactions (sessions, projects)
+    // Handle select menu interactions (sessions, projects, models, variants)
     if (interaction.isStringSelectMenu()) {
-      const { handleSessionSelectInteraction } = await import("./handlers/session.js");
-      const { handleProjectSelectInteraction } = await import("./handlers/project.js");
-      if (interaction.customId === "session:select") {
+      const customId = interaction.customId;
+      if (customId === "session:select") {
+        const { handleSessionSelectInteraction } = await import("./handlers/session.js");
         await handleSessionSelectInteraction(interaction, adapterInstance!);
-      } else if (interaction.customId === "project:select") {
+      } else if (customId === "project:select") {
+        const { handleProjectSelectInteraction } = await import("./handlers/project.js");
         await handleProjectSelectInteraction(interaction, adapterInstance!);
+      } else if (customId.startsWith("model:select")) {
+        const { handleModelSelectInteraction } = await import("./handlers/model.js");
+        await handleModelSelectInteraction(interaction, adapterInstance!);
+      } else if (customId === "variant:select") {
+        const { handleVariantSelectInteraction } = await import("./handlers/variant.js");
+        await handleVariantSelectInteraction(interaction, adapterInstance!);
       }
       return;
     }

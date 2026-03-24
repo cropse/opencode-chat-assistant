@@ -37,7 +37,16 @@ export const DISCORD_COMMAND_DEFINITIONS = [
 
   new SlashCommandBuilder().setName("help").setDescription(t("cmd.description.help")),
 
-  new SlashCommandBuilder().setName("model").setDescription("Select AI model"),
+  new SlashCommandBuilder()
+    .setName("model")
+    .setDescription("Select AI model")
+    .addStringOption((opt) =>
+      opt
+        .setName("scope")
+        .setDescription("Show all catalog models")
+        .addChoices({ name: "all", value: "all" })
+        .setRequired(false),
+    ),
 
   new SlashCommandBuilder().setName("agent").setDescription("Select agent mode (build/plan)"),
 
