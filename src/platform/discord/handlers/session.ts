@@ -14,6 +14,7 @@ import { t } from "../../../i18n/index.js";
 import { buildStatusSummary } from "../formatter.js";
 import { registerThreadSession } from "../bot.js";
 import type { DiscordAdapter } from "../adapter.js";
+import type { AssistantMessage, Part, TextPart } from "@opencode-ai/sdk/v2";
 
 export async function handleSessionSelectInteraction(
   interaction: StringSelectMenuInteraction,
@@ -97,42 +98,37 @@ export async function handleSessionSelectInteraction(
       });
 
       if (messages && messages.length > 0) {
-        // Walk messages for tokens (take peak input+cache.read from assistant messages)
+        logger.debug(`[Discord] Session messages count=${messages.length}`);
+
+        // Walk all messages for tokens (peak input+cache.read across non-summary assistant messages)
         for (const msg of messages) {
-          if (msg.info?.role === "assistant") {
-            const info = msg.info as {
-              summary?: boolean;
-              tokens?: { input?: number; cache?: { read?: number } };
-            };
+          if (msg.info.role === "assistant") {
+            const info = msg.info as AssistantMessage;
             if (!info.summary) {
-              const input = info.tokens?.input ?? 0;
-              const cacheRead = info.tokens?.cache?.read ?? 0;
-              const total = input + cacheRead;
+              const total = (info.tokens?.input ?? 0) + (info.tokens?.cache?.read ?? 0);
               if (total > tokensUsed) tokensUsed = total;
             }
           }
         }
 
-        // Find last non-summary assistant message for preview
-        const lastAssistant = messages.find(
-          (m) => m.info?.role === "assistant" && !(m.info as Record<string, unknown>).summary,
+        // Find LAST non-summary assistant message for preview (messages may be oldest-first)
+        const assistantMessages = messages.filter(
+          (m) => m.info.role === "assistant" && !(m.info as AssistantMessage).summary,
         );
+        const lastAssistant = assistantMessages[assistantMessages.length - 1];
+
         if (lastAssistant) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const parts = (lastAssistant as any).parts as
-            | Array<{ type: string; text?: string; content?: string }>
-            | undefined;
-          if (parts) {
-            const textPart = parts.find((p) => p.type === "text" && (p.text || p.content));
-            const raw = textPart?.text ?? textPart?.content ?? "";
-            if (raw) {
-              lastMessagePreview = raw.substring(0, 200) + (raw.length > 200 ? "..." : "");
-            }
+          const textPart = (lastAssistant.parts as Part[]).find(
+            (p): p is TextPart => p.type === "text",
+          );
+          if (textPart?.text) {
+            const raw = textPart.text;
+            lastMessagePreview = raw.substring(0, 200) + (raw.length > 200 ? "..." : "");
           }
         }
       }
-    } catch {
-      logger.debug("[Discord] Could not fetch session history for preview");
+    } catch (err) {
+      logger.debug("[Discord] Could not fetch session history for preview:", err);
     }
 
     let summary = buildStatusSummary({
