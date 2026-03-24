@@ -1,14 +1,10 @@
 import type { ChatInputCommandInteraction } from "discord.js";
-import { getStoredAgent } from "../../../agent/manager.js";
-import { getAgentDisplayName } from "../../../agent/types.js";
+import { DiscordAdapter } from "../adapter.js";
+import { showDiscordAgentSelection } from "../handlers/agent.js";
 
 export async function handleAgentCommand(interaction: ChatInputCommandInteraction): Promise<void> {
-  await interaction.deferReply();
-
-  const currentAgent = getStoredAgent();
-  const agentDisplay = getAgentDisplayName(currentAgent);
-
-  await interaction.editReply({
-    content: `⚡ **Agent Mode Selection**\n\nCurrent: ${agentDisplay}\n\nUse the Telegram bot for full agent selection (build/plan modes).`,
-  });
+  const client = interaction.client;
+  const adapter = new DiscordAdapter(client);
+  adapter.setChatId(interaction.channelId);
+  await showDiscordAgentSelection(adapter, interaction);
 }

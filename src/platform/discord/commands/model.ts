@@ -1,16 +1,13 @@
 import type { ChatInputCommandInteraction } from "discord.js";
-import { getStoredModel } from "../../../model/manager.js";
+import { DiscordAdapter } from "../adapter.js";
+import { showDiscordModelSelection } from "../handlers/model.js";
 
 export async function handleModelCommand(interaction: ChatInputCommandInteraction): Promise<void> {
-  await interaction.deferReply();
+  const scope = interaction.options.getString("scope");
+  const showAll = scope === "all";
 
-  const currentModel = getStoredModel();
-  const modelDisplay =
-    currentModel.providerID && currentModel.modelID
-      ? `${currentModel.providerID}/${currentModel.modelID}`
-      : "Not selected";
-
-  await interaction.editReply({
-    content: `🤖 **Model Selection**\n\nCurrent: ${modelDisplay}\n\nUse the Telegram bot for full model selection with favorites and recent history.`,
-  });
+  const client = interaction.client;
+  const adapter = new DiscordAdapter(client);
+  adapter.setChatId(interaction.channelId);
+  await showDiscordModelSelection(adapter, interaction, showAll);
 }

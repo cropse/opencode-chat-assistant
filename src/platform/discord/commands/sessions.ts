@@ -1,13 +1,20 @@
+import {
+  ActionRowBuilder,
+  StringSelectMenuBuilder,
+  StringSelectMenuOptionBuilder,
+} from "discord.js";
 import type { ChatInputCommandInteraction } from "discord.js";
 import { opencodeClient } from "../../../opencode/client.js";
-import { getCurrentProject } from "../../../settings/manager.js";
+import { getCurrentProject, getCurrentSession } from "../../../settings/manager.js";
 import { t } from "../../../i18n/index.js";
 import { logger } from "../../../utils/logger.js";
+
+const MAX_SELECT_OPTIONS = 25;
 
 export async function handleSessionsCommand(
   interaction: ChatInputCommandInteraction,
 ): Promise<void> {
-  await interaction.deferReply();
+  await interaction.deferReply({ ephemeral: true });
 
   try {
     const currentProject = getCurrentProject();
@@ -19,7 +26,7 @@ export async function handleSessionsCommand(
 
     const { data: sessions, error } = await opencodeClient.session.list({
       directory: currentProject.worktree,
-      limit: 20,
+      limit: MAX_SELECT_OPTIONS,
     });
 
     if (error || !sessions) {
@@ -31,16 +38,33 @@ export async function handleSessionsCommand(
       return;
     }
 
-    const lines = sessions
-      .slice(0, 10)
-      .map((session: { id: string; title: string; time?: { created?: number } }, index: number) => {
+    const currentSessionInfo = getCurrentSession();
+
+    const options: StringSelectMenuOptionBuilder[] = sessions
+      .slice(0, MAX_SELECT_OPTIONS)
+      .map((session: { id: string; title: string; time?: { created?: number } }) => {
         const date = new Date(session.time?.created ?? Date.now()).toLocaleDateString();
-        return `${index + 1}. **${session.title}** (${date})`;
+        const label = session.title.substring(0, 80);
+        const isDefault = currentSessionInfo?.id === session.id;
+
+        return new StringSelectMenuOptionBuilder()
+          .setLabel(label)
+          .setDescription(date)
+          .setValue(session.id)
+          .setDefault(isDefault);
       });
 
-    const message = `📋 ${t("sessions.select")}\n\n${lines.join("\n")}\n\nUse /sessions in the Telegram bot for full session management.`;
+    const row = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+      new StringSelectMenuBuilder()
+        .setCustomId("session:select")
+        .setPlaceholder("Select a session")
+        .addOptions(options),
+    );
 
-    await interaction.editReply({ content: message });
+    await interaction.editReply({
+      content: `📋 **Sessions** (${sessions.length})`,
+      components: [row],
+    });
   } catch (err) {
     logger.error("[Discord] Sessions command error", err);
     await interaction.editReply({ content: t("sessions.fetch_error") });

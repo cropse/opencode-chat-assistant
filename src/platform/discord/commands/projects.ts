@@ -1,17 +1,22 @@
+import {
+  ActionRowBuilder,
+  StringSelectMenuBuilder,
+  StringSelectMenuOptionBuilder,
+} from "discord.js";
 import type { ChatInputCommandInteraction } from "discord.js";
-import { setCurrentProject, getCurrentProject } from "../../../settings/manager.js";
 import { getProjects } from "../../../project/manager.js";
 import { syncSessionDirectoryCache } from "../../../session/cache-manager.js";
-import { clearSession } from "../../../session/manager.js";
-import { summaryAggregator } from "../../../summary/aggregator.js";
-import { clearAllInteractionState } from "../../../interaction/cleanup.js";
-import { logger } from "../../../utils/logger.js";
+import { getCurrentProject } from "../../../settings/manager.js";
 import { t } from "../../../i18n/index.js";
+import { logger } from "../../../utils/logger.js";
+import path from "node:path";
+
+const MAX_SELECT_OPTIONS = 25;
 
 export async function handleProjectsCommand(
   interaction: ChatInputCommandInteraction,
 ): Promise<void> {
-  await interaction.deferReply();
+  await interaction.deferReply({ ephemeral: true });
 
   try {
     await syncSessionDirectoryCache();
@@ -22,58 +27,40 @@ export async function handleProjectsCommand(
       return;
     }
 
-    const lines = projects.slice(0, 10).map((project, index) => {
-      const currentMark = getCurrentProject()?.id === project.id ? " ✅" : "";
-      const name = project.name || project.worktree;
-      return `${index + 1}. **${name}**${currentMark}`;
-    });
-
     const currentProject = getCurrentProject();
-    const header = currentProject
-      ? t("projects.select_with_current", {
-          project: currentProject.name || currentProject.worktree,
-        })
-      : t("projects.select");
 
-    const message = `${header}\n\n${lines.join("\n")}\n\nUse /projects in the Telegram bot for full project management.`;
+    const options: StringSelectMenuOptionBuilder[] = projects
+      .slice(0, MAX_SELECT_OPTIONS)
+      .map((project) => {
+        const name = project.name || path.basename(project.worktree) || project.worktree;
+        const label = name.substring(0, 100);
+        const description = project.worktree.substring(0, 100);
+        const isDefault = currentProject?.id === project.id;
 
-    await interaction.editReply({ content: message });
+        return new StringSelectMenuOptionBuilder()
+          .setLabel(label)
+          .setDescription(description)
+          .setValue(project.id)
+          .setDefault(isDefault);
+      });
+
+    const row = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+      new StringSelectMenuBuilder()
+        .setCustomId("project:select")
+        .setPlaceholder("Select a project")
+        .addOptions(options),
+    );
+
+    const currentName = currentProject
+      ? currentProject.name || path.basename(currentProject.worktree) || currentProject.worktree
+      : "None";
+
+    await interaction.editReply({
+      content: `📁 **Projects** (${projects.length})\nCurrent: ${currentName}`,
+      components: [row],
+    });
   } catch (err) {
     logger.error("[Discord] Projects command error", err);
     await interaction.editReply({ content: t("projects.fetch_error") });
-  }
-}
-
-export async function handleProjectSwitch(interaction: ChatInputCommandInteraction): Promise<void> {
-  await interaction.deferReply();
-
-  try {
-    const projectId = interaction.options.getString("project");
-    if (!projectId) {
-      await interaction.editReply({ content: t("projects.fetch_error") });
-      return;
-    }
-
-    await syncSessionDirectoryCache();
-    const projects = await getProjects();
-    const selectedProject = projects.find((p) => p.id === projectId);
-
-    if (!selectedProject) {
-      await interaction.editReply({ content: t("projects.select_error") });
-      return;
-    }
-
-    setCurrentProject(selectedProject);
-    clearSession();
-    summaryAggregator.clear();
-    clearAllInteractionState("project_switched");
-
-    const projectName = selectedProject.name || selectedProject.worktree;
-    await interaction.editReply({
-      content: t("projects.selected", { project: projectName }),
-    });
-  } catch (err) {
-    logger.error("[Discord] Project switch error", err);
-    await interaction.editReply({ content: t("projects.select_error") });
   }
 }
