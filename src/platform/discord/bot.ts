@@ -206,7 +206,11 @@ function setupSummaryAggregatorCallbacks(): void {
     const threadId = getDiscordThreadForSession(sessionId);
     if (!threadId) return;
     adapterInstance.setThreadId(threadId);
-    await adapterInstance.sendMessage(t("bot.session_error", { message: error }));
+
+    // Capture prompt author before clearing
+    const promptAuthor = getSessionOwner();
+    const mention = promptAuthor ? ` <@${promptAuthor}>` : "";
+    await adapterInstance.sendMessage(t("bot.session_error", { message: error }) + mention);
     adapterInstance.clearThreadId();
     clearSessionOwner();
 
@@ -222,6 +226,9 @@ function setupSummaryAggregatorCallbacks(): void {
   // This is where we clean up reactions and unlock the session
   summaryAggregator.setOnSessionIdle(async (sessionId) => {
     stopTypingIndicator();
+
+    // Capture prompt author before clearing
+    const promptAuthor = getSessionOwner();
     clearSessionOwner();
 
     // Remove ⏳ and 🛑 reactions from the user's prompt message
@@ -229,6 +236,16 @@ function setupSummaryAggregatorCallbacks(): void {
       await adapterInstance.removeReaction(lastPromptMessageRef, "⏳").catch(() => {});
       await adapterInstance.removeReaction(lastPromptMessageRef, "🛑").catch(() => {});
       lastPromptMessageRef = null;
+    }
+
+    // Ping the user who sent the prompt to notify them the task is done
+    if (promptAuthor && adapterInstance?.isReady()) {
+      const threadId = getDiscordThreadForSession(sessionId);
+      if (threadId) {
+        adapterInstance.setThreadId(threadId);
+        await adapterInstance.sendMessage(`✅ Done <@${promptAuthor}>`);
+        adapterInstance.clearThreadId();
+      }
     }
   });
 
