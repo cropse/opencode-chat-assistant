@@ -87,34 +87,52 @@ export async function handleSessionSelectInteraction(
       (currentProject.name || currentProject.worktree).split(/[\\/]/).pop() ||
       currentProject.worktree;
 
-    // Fetch last assistant message for context
+    // Fetch last assistant message + token count from session history
     let lastMessagePreview = "";
+    let tokensUsed = 0;
     try {
       const { data: messages } = await opencodeClient.session.messages({
         sessionID: selectedSession.id,
         directory: currentProject.worktree,
-        limit: 5,
       });
+
       if (messages && messages.length > 0) {
-        // Find last assistant message
+        // Walk messages for tokens (take peak input+cache.read from assistant messages)
+        for (const msg of messages) {
+          if (msg.info?.role === "assistant") {
+            const info = msg.info as {
+              summary?: boolean;
+              tokens?: { input?: number; cache?: { read?: number } };
+            };
+            if (!info.summary) {
+              const input = info.tokens?.input ?? 0;
+              const cacheRead = info.tokens?.cache?.read ?? 0;
+              const total = input + cacheRead;
+              if (total > tokensUsed) tokensUsed = total;
+            }
+          }
+        }
+
+        // Find last non-summary assistant message for preview
         const lastAssistant = messages.find(
-          (m: { info: { role: string } }) => m.info.role === "assistant",
+          (m) => m.info?.role === "assistant" && !(m.info as Record<string, unknown>).summary,
         );
         if (lastAssistant) {
-          // Extract text from parts
-          const parts = (lastAssistant as { parts?: Array<{ type: string; text?: string }> }).parts;
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const parts = (lastAssistant as any).parts as
+            | Array<{ type: string; text?: string; content?: string }>
+            | undefined;
           if (parts) {
-            const textPart = parts.find((p) => p.type === "text" && p.text);
-            if (textPart?.text) {
-              const preview = textPart.text.substring(0, 200);
-              lastMessagePreview = preview + (textPart.text.length > 200 ? "..." : "");
+            const textPart = parts.find((p) => p.type === "text" && (p.text || p.content));
+            const raw = textPart?.text ?? textPart?.content ?? "";
+            if (raw) {
+              lastMessagePreview = raw.substring(0, 200) + (raw.length > 200 ? "..." : "");
             }
           }
         }
       }
     } catch {
-      // Non-critical — skip if we can't fetch
-      logger.debug("[Discord] Could not fetch last message for session preview");
+      logger.debug("[Discord] Could not fetch session history for preview");
     }
 
     let summary = buildStatusSummary({
@@ -124,8 +142,8 @@ export async function handleSessionSelectInteraction(
       agent: getAgentDisplayName(agent),
       model: model.providerID && model.modelID ? model.modelID : "Auto (agent default)",
       variant: model.variant,
-      tokensUsed: pinnedState.tokensUsed,
-      tokensLimit: pinnedState.tokensLimit,
+      tokensUsed: tokensUsed || undefined,
+      tokensLimit: pinnedState.tokensLimit || undefined,
     });
 
     if (lastMessagePreview) {
