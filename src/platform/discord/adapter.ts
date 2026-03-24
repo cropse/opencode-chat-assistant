@@ -61,6 +61,13 @@ export class DiscordAdapter implements PlatformAdapter {
   }
 
   /**
+   * Returns true if the adapter has a valid channel to send messages to.
+   */
+  isReady(): boolean {
+    return this.channelId !== "";
+  }
+
+  /**
    * Create a public thread from a slash command reply message and bind it to this adapter.
    * Call this after interaction.editReply() so the reply message exists.
    * All subsequent sendMessage calls will go into the thread.

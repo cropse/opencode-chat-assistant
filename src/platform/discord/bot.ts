@@ -144,6 +144,7 @@ function setupSummaryAggregatorCallbacks(): void {
     sendText: async (sessionId, text) => {
       const currentSession = getCurrentSession();
       if (!currentSession || currentSession.id !== sessionId) return;
+      if (!adapterInstance?.isReady()) return;
       const parts = formatSummaryWithConfig(text, DISCORD_FORMAT_CONFIG);
       for (const part of parts) {
         await adapterInstance!.sendMessage(part);
@@ -156,6 +157,7 @@ function setupSummaryAggregatorCallbacks(): void {
 
   summaryAggregator.setOnComplete(async (sessionId, messageText) => {
     stopTypingIndicator();
+    if (!adapterInstance?.isReady()) return;
     await toolMessageBatcherInstance?.flushSession(sessionId, "assistant_message_completed");
     const parts = formatSummaryWithConfig(messageText, DISCORD_FORMAT_CONFIG);
     for (const part of parts) {
@@ -185,12 +187,14 @@ function setupSummaryAggregatorCallbacks(): void {
     startTypingIndicator();
     const currentSession = getCurrentSession();
     if (!currentSession || currentSession.id !== sessionId) return;
-    await adapterInstance!.sendMessage(t("bot.thinking"));
+    if (!adapterInstance?.isReady()) return;
+    await adapterInstance.sendMessage(t("bot.thinking"));
   });
 
   summaryAggregator.setOnSessionError(async (sessionId, error) => {
     stopTypingIndicator();
-    await adapterInstance!.sendMessage(t("bot.session_error", { message: error }));
+    if (!adapterInstance?.isReady()) return;
+    await adapterInstance.sendMessage(t("bot.session_error", { message: error }));
     adapterInstance?.clearThreadId();
     clearSessionOwner();
 
@@ -317,7 +321,7 @@ function setupSummaryAggregatorCallbacks(): void {
  */
 function startDiscordPollerForSession(sessionId: string, directory: string): void {
   startMessagePolling(sessionId, directory, (polledSessionId, messageText) => {
-    if (!adapterInstance) return;
+    if (!adapterInstance || !adapterInstance.isReady()) return;
 
     logger.info(
       `[MessagePoller] Forwarding polled assistant reply to Discord (session=${polledSessionId})`,
