@@ -133,4 +133,22 @@ export class TelegramAdapter implements PlatformAdapter {
 
     return `${TELEGRAM_FILE_URL_BASE}${config.telegram.token}/${file.file_path}`;
   }
+
+  async addReaction(messageRef: PlatformMessageRef, emoji: string): Promise<void> {
+    try {
+      await this.api.setMessageReaction(this.chatId, fromMessageRef(messageRef), [
+        { type: "emoji", emoji: emoji as "👍" },
+      ]);
+    } catch (err) {
+      logger.debug(`[TelegramAdapter] Failed to add reaction: ${err}`);
+    }
+  }
+
+  async removeReaction(messageRef: PlatformMessageRef, _emoji: string): Promise<void> {
+    try {
+      await this.api.setMessageReaction(this.chatId, fromMessageRef(messageRef), []);
+    } catch (err) {
+      logger.debug(`[TelegramAdapter] Failed to remove reaction: ${err}`);
+    }
+  }
 }

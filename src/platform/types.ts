@@ -85,6 +85,12 @@ export interface PlatformAdapter {
 
   // Get a downloadable URL for a file by its platform file ID
   getFileUrl(fileId: string): Promise<string>;
+
+  // Add a reaction emoji to a message
+  addReaction(messageRef: PlatformMessageRef, emoji: string): Promise<void>;
+
+  // Remove a reaction emoji from a message
+  removeReaction(messageRef: PlatformMessageRef, emoji: string): Promise<void>;
 }
 
 /**
