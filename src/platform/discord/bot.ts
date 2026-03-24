@@ -365,7 +365,7 @@ export function createDiscordBot(): Client {
       return;
     }
 
-    // Handle button interactions (questions, permissions, agent selection)
+    // Handle button interactions (questions, permissions, agent selection, commands)
     if (interaction.isButton()) {
       const customId = interaction.customId;
       if (customId.startsWith("question:")) {
@@ -375,11 +375,18 @@ export function createDiscordBot(): Client {
       } else if (customId.startsWith("agent:")) {
         const { handleAgentButtonInteraction } = await import("./handlers/agent.js");
         await handleAgentButtonInteraction(interaction, adapterInstance!);
+      } else if (customId.startsWith("command:")) {
+        const { handleCommandButtonInteraction } = await import("./commands/commands.js");
+        await handleCommandButtonInteraction(interaction, adapterInstance!, {
+          adapter: adapterInstance!,
+          ensureEventSubscription: (_directory: string) =>
+            autoSubscribeDiscordEvents(clientInstance!),
+        });
       }
       return;
     }
 
-    // Handle select menu interactions (sessions, projects, models, variants)
+    // Handle select menu interactions (sessions, projects, models, variants, commands)
     if (interaction.isStringSelectMenu()) {
       const customId = interaction.customId;
       if (customId === "session:select") {
@@ -394,6 +401,9 @@ export function createDiscordBot(): Client {
       } else if (customId === "variant:select") {
         const { handleVariantSelectInteraction } = await import("./handlers/variant.js");
         await handleVariantSelectInteraction(interaction, adapterInstance!);
+      } else if (customId === "command:select") {
+        const { handleCommandSelectInteraction } = await import("./commands/commands.js");
+        await handleCommandSelectInteraction(interaction, adapterInstance!);
       }
       return;
     }
@@ -419,7 +429,11 @@ export function createDiscordBot(): Client {
       case "rename":
         return handleRenameCommand(interaction);
       case "commands":
-        return handleCommandsCommand(interaction);
+        return handleCommandsCommand(interaction, {
+          adapter: adapterInstance!,
+          ensureEventSubscription: (_directory: string) =>
+            autoSubscribeDiscordEvents(clientInstance!),
+        });
       case "skills":
         return handleSkillsCommand(interaction);
       case "opencode_start":
