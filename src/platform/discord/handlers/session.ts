@@ -100,22 +100,19 @@ export async function handleSessionSelectInteraction(
       if (messages && messages.length > 0) {
         logger.debug(`[Discord] Session messages count=${messages.length}`);
 
-        // Walk all messages for tokens (peak input+cache.read across non-summary assistant messages)
-        for (const msg of messages) {
-          if (msg.info.role === "assistant") {
-            const info = msg.info as AssistantMessage;
-            if (!info.summary) {
-              const total = (info.tokens?.input ?? 0) + (info.tokens?.cache?.read ?? 0);
-              if (total > tokensUsed) tokensUsed = total;
-            }
-          }
-        }
-
-        // Find LAST non-summary assistant message for preview (messages may be oldest-first)
+        // Find LAST non-summary assistant message (messages may be oldest-first)
         const assistantMessages = messages.filter(
           (m) => m.info.role === "assistant" && !(m.info as AssistantMessage).summary,
         );
         const lastAssistant = assistantMessages[assistantMessages.length - 1];
+
+        // Use the LAST assistant message's input tokens as context size.
+        // tokens.input represents the full context window sent for that API call,
+        // so the last message reflects current context usage.
+        if (lastAssistant) {
+          const lastInfo = lastAssistant.info as AssistantMessage;
+          tokensUsed = (lastInfo.tokens?.input ?? 0) + (lastInfo.tokens?.cache?.read ?? 0);
+        }
 
         if (lastAssistant) {
           const textPart = (lastAssistant.parts as Part[]).find(

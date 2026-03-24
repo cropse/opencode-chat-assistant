@@ -119,12 +119,15 @@ class PinnedMessageManager {
         return;
       }
 
-      // Get the maximum context size from session history
-      // Context = input + cache.read (cache.read contains previously cached context)
-      let maxContextSize = 0;
+      // Get the context size from the LAST assistant message in session history.
+      // tokens.input represents the full context window sent for that API call,
+      // so the last message reflects current context usage (not the peak ever seen).
+      let lastContextSize = 0;
       logger.debug(`[PinnedManager] Processing ${messagesData.length} messages from history`);
 
-      messagesData.forEach(({ info }) => {
+      // Find the last non-summary assistant message
+      for (let i = messagesData.length - 1; i >= 0; i--) {
+        const { info } = messagesData[i];
         if (info.role === "assistant") {
           const assistantInfo = info as {
             summary?: boolean;
@@ -134,28 +137,20 @@ class PinnedMessageManager {
             };
           };
 
-          // Skip summary messages (technical, not real agent responses)
-          if (assistantInfo.summary) {
-            logger.debug(`[PinnedManager] Skipping summary message`);
-            return;
-          }
+          if (assistantInfo.summary) continue;
 
           const input = assistantInfo.tokens?.input || 0;
           const cacheRead = assistantInfo.tokens?.cache?.read || 0;
-          const contextSize = input + cacheRead;
+          lastContextSize = input + cacheRead;
 
           logger.debug(
-            `[PinnedManager] Assistant message: input=${input}, cache.read=${cacheRead}, total=${contextSize}`,
+            `[PinnedManager] Last assistant message: input=${input}, cache.read=${cacheRead}, total=${lastContextSize}`,
           );
-
-          // Keep track of maximum context size (peak usage in session)
-          if (contextSize > maxContextSize) {
-            maxContextSize = contextSize;
-          }
+          break;
         }
-      });
+      }
 
-      this.state.tokensUsed = maxContextSize;
+      this.state.tokensUsed = lastContextSize;
       this.state.sessionId = sessionId;
 
       logger.info(`[PinnedManager] Loaded context from history: ${this.state.tokensUsed} tokens`);
