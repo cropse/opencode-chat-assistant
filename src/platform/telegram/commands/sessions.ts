@@ -470,7 +470,7 @@ function formatSessionPreview(_sessionTitle: string, items: SessionPreviewItem[]
   return truncateText(rawMessage, TELEGRAM_MESSAGE_LIMIT);
 }
 
-async function sendSessionPreview(
+export async function sendSessionPreview(
   api: Context["api"],
   chatId: number,
   messageId: number | null,

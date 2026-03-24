@@ -192,14 +192,13 @@ The `config.yaml` file location depends on how you run the bot:
 
 ### Discord Platform Configuration
 
-| Key                      |   Required   | Description                                                   |
-| ------------------------ | :----------: | ------------------------------------------------------------- |
-| `platform`               |      No      | `"telegram"` (default) or `"discord"`                         |
-| `discord.token`          | When discord | Bot token from Discord Developer Portal                       |
-| `discord.guildId`        | When discord | Discord server ID (Enable Developer Mode, right-click server) |
-| `discord.channelId`      |      No      | Restrict bot to a specific channel                            |
-| `discord.allowedRoleIds` | When discord | Comma-separated role IDs for channel access                   |
-| `discord.allowedUserIds` |      No      | Comma-separated user IDs for DM access                        |
+| Key                      |   Required   | Description                                                       |
+| ------------------------ | :----------: | ----------------------------------------------------------------- |
+| `platform`               |      No      | `"telegram"` (default) or `"discord"`                             |
+| `discord.token`          | When discord | Bot token from Discord Developer Portal                           |
+| `discord.serverId`       | When discord | Discord server ID (Enable Developer Mode, right-click server)     |
+| `discord.allowedRoleIds` | When discord | Role IDs for channel access (YAML list or comma-separated string) |
+| `discord.allowedUserIds` |      No      | User IDs for DM access (YAML list or comma-separated string)      |
 
 See [docs/DISCORD_SETUP.md](docs/DISCORD_SETUP.md) for step-by-step Discord setup instructions.
 

@@ -70,11 +70,11 @@ telegram:
 # discord:
 #   # Bot token from Discord Developer Portal (https://discord.com/developers/applications)
 #   token: ""
-#   # Guild (server) ID where slash commands will be registered
-#   guildId: ""
-#   # Default channel ID for messages (optional)
-#   channelId: ""
-#   # Comma-separated role IDs that can use the bot
-#   allowedRoleIds: ""
-#   # Comma-separated user IDs that can use the bot (fallback if no roles match)
-#   allowedUserIds: ""
+#   # Server ID where slash commands will be registered
+#   serverId: ""
+#   # Role IDs that can use the bot (list or comma-separated string)
+#   allowedRoleIds:
+#     - ""
+#   # User IDs that can DM the bot directly (list or comma-separated string)
+#   # allowedUserIds:
+#   #   - 0

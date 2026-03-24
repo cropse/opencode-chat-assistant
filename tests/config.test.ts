@@ -6,7 +6,7 @@ describe("discord config parsing", () => {
     telegram: { token: "test-telegram-token", allowedUserId: "123456789" },
   };
 
-  it("parses allowedRoleIds as comma-separated array", () => {
+  it("parses allowedRoleIds as comma-separated string", () => {
     const config = buildConfig({
       ...baseConfig,
       discord: { allowedRoleIds: "role1,role2,role3" },
@@ -15,13 +15,40 @@ describe("discord config parsing", () => {
     expect(config.discord.allowedRoleIds).toEqual(["role1", "role2", "role3"]);
   });
 
-  it("parses allowedUserIds as comma-separated number array", () => {
+  it("parses allowedRoleIds as YAML array", () => {
+    const config = buildConfig({
+      ...baseConfig,
+      discord: { allowedRoleIds: ["role1", "role2", "role3"] },
+    });
+
+    expect(config.discord.allowedRoleIds).toEqual(["role1", "role2", "role3"]);
+  });
+
+  it("parses allowedUserIds as comma-separated string", () => {
     const config = buildConfig({
       ...baseConfig,
       discord: { allowedUserIds: "123456789,987654321,111222333" },
     });
 
     expect(config.discord.allowedUserIds).toEqual([123456789, 987654321, 111222333]);
+  });
+
+  it("parses allowedUserIds as YAML array", () => {
+    const config = buildConfig({
+      ...baseConfig,
+      discord: { allowedUserIds: [123456789, 987654321] },
+    });
+
+    expect(config.discord.allowedUserIds).toEqual([123456789, 987654321]);
+  });
+
+  it("parses allowedUserIds as YAML array of strings", () => {
+    const config = buildConfig({
+      ...baseConfig,
+      discord: { allowedUserIds: ["123456789", "987654321"] },
+    });
+
+    expect(config.discord.allowedUserIds).toEqual([123456789, 987654321]);
   });
 
   it("returns empty arrays when discord fields not provided", () => {
@@ -31,13 +58,41 @@ describe("discord config parsing", () => {
     expect(config.discord.allowedUserIds).toEqual([]);
   });
 
-  it("filters empty strings from allowedRoleIds", () => {
+  it("filters empty strings from allowedRoleIds (comma-separated)", () => {
     const config = buildConfig({
       ...baseConfig,
       discord: { allowedRoleIds: "role1,,role2," },
     });
 
     expect(config.discord.allowedRoleIds).toEqual(["role1", "role2"]);
+  });
+
+  it("filters empty strings from allowedRoleIds (YAML array)", () => {
+    const config = buildConfig({
+      ...baseConfig,
+      discord: { allowedRoleIds: ["role1", "", "role2", ""] },
+    });
+
+    expect(config.discord.allowedRoleIds).toEqual(["role1", "role2"]);
+  });
+
+  it("uses serverId instead of guildId", () => {
+    const config = buildConfig({
+      ...baseConfig,
+      discord: { serverId: "123456789" },
+    });
+
+    expect(config.discord.serverId).toBe("123456789");
+  });
+
+  it("does not include channelId or guildId in config", () => {
+    const config = buildConfig({
+      ...baseConfig,
+      discord: { serverId: "123456789" },
+    });
+
+    expect(config.discord).not.toHaveProperty("channelId");
+    expect(config.discord).not.toHaveProperty("guildId");
   });
 });
 

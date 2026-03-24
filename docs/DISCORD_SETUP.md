@@ -57,7 +57,7 @@ Open this URL in your browser, select your server, and click **Authorize**.
 2. Right-click your server icon in the sidebar
 3. Click **Copy Server ID**
 
-You'll use this as `discord.guildId` in your config.
+You'll use this as `discord.serverId` in your config.
 
 ---
 
@@ -88,17 +88,18 @@ discord:
   # Bot token from Step 2
   token: "YOUR_BOT_TOKEN_HERE"
 
-  # Server/Guild ID from Step 4
-  guildId: "YOUR_SERVER_ID"
+  # Server ID from Step 4
+  serverId: "YOUR_SERVER_ID"
 
-  # (Optional) Restrict to a specific channel
-  # channelId: "CHANNEL_ID"
+  # Role IDs allowed to use the bot in channels (list or comma-separated string)
+  allowedRoleIds:
+    - "ROLE_ID_1"
+    - "ROLE_ID_2"
 
-  # Role IDs allowed to use the bot in channels (comma-separated)
-  allowedRoleIds: "ROLE_ID_1,ROLE_ID_2"
-
-  # (Optional) User IDs allowed to DM the bot directly (comma-separated)
-  # allowedUserIds: "USER_ID_1,USER_ID_2"
+  # (Optional) User IDs allowed to DM the bot directly (list or comma-separated string)
+  # allowedUserIds:
+  #   - 123456789012345678
+  #   - 987654321012345678
 ```
 
 ---
@@ -184,9 +185,9 @@ Only one user can control the active session at a time. If a session is in progr
 **Bot doesn't respond to messages**
 
 - Verify the Message Content Intent is enabled in the Bot tab
-- Check that `guildId` matches your server ID exactly
+- Check that `serverId` matches your server ID exactly
 
 **"Channel not found" error**
 
-- If using `channelId`, verify it's the correct channel ID
-- Remove `channelId` to allow bot in all channels the role can access
+- The bot dynamically resolves channels from incoming messages
+- Make sure the bot has "View Channels" permission in the server

@@ -59,23 +59,34 @@ function isValidHttpUrl(value: string): boolean {
 }
 
 export function validateRuntimeConfigValues(values: Record<string, unknown>): EnvValidationResult {
-  const telegram = values?.telegram as Record<string, unknown> | undefined;
+  const platform = values?.platform ? String(values.platform).trim().toLowerCase() : "telegram";
 
-  if (!telegram?.token || String(telegram.token).trim().length === 0) {
-    return { isValid: false, reason: "Missing telegram.token" };
-  }
+  if (platform === "discord") {
+    // Discord mode: validate discord config instead of telegram
+    const discord = values?.discord as Record<string, unknown> | undefined;
+    if (!discord?.token || String(discord.token).trim().length === 0) {
+      return { isValid: false, reason: "Missing discord.token" };
+    }
+  } else {
+    // Telegram mode: validate telegram config
+    const telegram = values?.telegram as Record<string, unknown> | undefined;
 
-  const userId = telegram?.allowedUserId;
-  if (userId === undefined || userId === null) {
-    return { isValid: false, reason: "Missing telegram.allowedUserId" };
-  }
-  // Accept both number and string
-  if (typeof userId === "number") {
-    if (!Number.isInteger(userId) || userId <= 0) {
+    if (!telegram?.token || String(telegram.token).trim().length === 0) {
+      return { isValid: false, reason: "Missing telegram.token" };
+    }
+
+    const userId = telegram?.allowedUserId;
+    if (userId === undefined || userId === null) {
+      return { isValid: false, reason: "Missing telegram.allowedUserId" };
+    }
+    // Accept both number and string
+    if (typeof userId === "number") {
+      if (!Number.isInteger(userId) || userId <= 0) {
+        return { isValid: false, reason: "Invalid telegram.allowedUserId" };
+      }
+    } else if (!isPositiveInteger(String(userId))) {
       return { isValid: false, reason: "Invalid telegram.allowedUserId" };
     }
-  } else if (!isPositiveInteger(String(userId))) {
-    return { isValid: false, reason: "Invalid telegram.allowedUserId" };
   }
 
   const opencode = values?.opencode as Record<string, unknown> | undefined;

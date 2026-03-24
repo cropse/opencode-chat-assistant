@@ -11,6 +11,7 @@ import { getStoredAgent, getAgentDefaultModel } from "../../../agent/manager.js"
 import { getStoredModel, selectModel } from "../../../model/manager.js";
 import { formatVariantForButton } from "../../../variant/manager.js";
 import { createMainKeyboard } from "../utils/keyboard.js";
+import { sendSessionPreview } from "./sessions.js";
 import { safeBackgroundTask } from "../../../utils/safe-background-task.js";
 import { logger } from "../../../utils/logger.js";
 import { t } from "../../../i18n/index.js";
@@ -97,6 +98,23 @@ export async function newCommand(ctx: CommandContext<Context>, deps: NewCommandD
     await ctx.reply(t("new.created", { title: session.title }), {
       reply_markup: keyboard,
     });
+
+    // Send session preview (consistent with /sessions behavior)
+    if (ctx.chat) {
+      const chatId = ctx.chat.id;
+      safeBackgroundTask({
+        taskName: "new.sendPreview",
+        task: () =>
+          sendSessionPreview(
+            ctx.api,
+            chatId,
+            null,
+            session.title,
+            session.id,
+            currentProject.worktree,
+          ),
+      });
+    }
   } catch (error) {
     logger.error("[Bot] Error creating session:", error);
     await ctx.reply(t("new.create_error"));

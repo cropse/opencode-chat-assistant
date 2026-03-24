@@ -37,8 +37,7 @@ vi.mock("../../../../src/config.js", () => ({
     stt: { apiUrl: "", apiKey: "", model: "whisper-large-v3-turbo", language: "" },
     discord: {
       token: "test-token",
-      guildId: "123456",
-      channelId: "",
+      serverId: "123456",
       allowedRoleIds: [],
       allowedUserIds: [],
     },

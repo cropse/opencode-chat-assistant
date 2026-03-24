@@ -109,6 +109,64 @@ export const DISCORD_FORMAT_CONFIG: PlatformFormatConfig = {
 };
 
 /**
+ * Data for building a plain-text status summary message.
+ */
+export interface StatusSummaryData {
+  /** Action that was performed (e.g., "Session → My Session") */
+  action: string;
+  /** Current project name */
+  project?: string;
+  /** Current session title */
+  session?: string;
+  /** Agent display name */
+  agent?: string;
+  /** Model display name */
+  model?: string;
+  /** Model variant */
+  variant?: string;
+  /** Tokens used in context */
+  tokensUsed?: number;
+  /** Token limit */
+  tokensLimit?: number;
+}
+
+/**
+ * Builds a plain-text status summary for Discord replies.
+ * Used after session/project switches to show current state.
+ *
+ * @param data - Status data to include
+ * @returns Formatted multi-line string
+ */
+export function buildStatusSummary(data: StatusSummaryData): string {
+  const lines: string[] = [`✅ **${data.action}**`];
+
+  if (data.project) {
+    lines.push(`📁 Project: ${data.project}`);
+  }
+  if (data.session) {
+    lines.push(`💬 Session: ${data.session}`);
+  }
+  if (data.agent) {
+    lines.push(`🤖 Agent: ${data.agent}`);
+  }
+  if (data.model) {
+    const modelLine =
+      data.variant && data.variant !== "default"
+        ? `🧠 Model: ${data.model} (${data.variant})`
+        : `🧠 Model: ${data.model}`;
+    lines.push(modelLine);
+  }
+  if (data.tokensUsed !== undefined) {
+    const tokenStr = data.tokensLimit
+      ? `${data.tokensUsed.toLocaleString()} / ${data.tokensLimit.toLocaleString()}`
+      : data.tokensUsed.toLocaleString();
+    lines.push(`📊 Context: ${tokenStr} tokens`);
+  }
+
+  return lines.join("\n");
+}
+
+/**
  * Status data for creating Discord status embeds.
  */
 export interface DiscordStatusData {

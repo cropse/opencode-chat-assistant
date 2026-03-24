@@ -1,4 +1,10 @@
-import { ChannelType, type DMChannel, type EmbedBuilder, type TextChannel } from "discord.js";
+import {
+  ChannelType,
+  type DMChannel,
+  type EmbedBuilder,
+  type TextChannel,
+  type ThreadChannel,
+} from "discord.js";
 import { logger } from "../../utils/logger.js";
 import type {
   PlatformAdapter,
@@ -26,6 +32,7 @@ export class DiscordAdapter implements PlatformAdapter {
     channels: { cache: { get(key: string): unknown }; fetch(key: string): Promise<unknown> };
   };
   private channelId: string = "";
+  private threadChannelId: string | null = null;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   constructor(client: {
@@ -39,22 +46,38 @@ export class DiscordAdapter implements PlatformAdapter {
     logger.debug(`[DiscordAdapter] Channel bound to ${this.channelId}`);
   }
 
-  private async getTextChannel(): Promise<TextChannel | DMChannel> {
-    // Try cache first, then fetch
+  setThreadId(threadId: string): void {
+    this.threadChannelId = threadId;
+    logger.debug(`[DiscordAdapter] Thread bound to ${this.threadChannelId}`);
+  }
+
+  clearThreadId(): void {
+    this.threadChannelId = null;
+    logger.debug("[DiscordAdapter] Thread cleared");
+  }
+
+  getThreadId(): string | null {
+    return this.threadChannelId;
+  }
+
+  private async getTextChannel(): Promise<TextChannel | DMChannel | ThreadChannel> {
+    const targetId = this.threadChannelId ?? this.channelId;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let channel: any = this.client.channels.cache.get(this.channelId);
+    let channel: any = this.client.channels.cache.get(targetId);
     if (!channel) {
-      channel = (await this.client.channels.fetch(this.channelId)) ?? undefined;
+      channel = (await this.client.channels.fetch(targetId)) ?? undefined;
     }
-    if (!channel) throw new Error(`Channel ${this.channelId} not found`);
+    if (!channel) throw new Error(`Channel ${targetId} not found`);
     if (
       channel.type !== ChannelType.GuildText &&
       channel.type !== ChannelType.DM &&
-      channel.type !== ChannelType.GuildAnnouncement
+      channel.type !== ChannelType.GuildAnnouncement &&
+      channel.type !== ChannelType.PublicThread &&
+      channel.type !== ChannelType.PrivateThread
     ) {
-      throw new Error(`Channel ${this.channelId} is not a text channel`);
+      throw new Error(`Channel ${targetId} is not a text channel`);
     }
-    return channel as TextChannel | DMChannel;
+    return channel as TextChannel | DMChannel | ThreadChannel;
   }
 
   async sendMessage(text: string, options?: PlatformMessageOptions): Promise<PlatformMessageRef> {

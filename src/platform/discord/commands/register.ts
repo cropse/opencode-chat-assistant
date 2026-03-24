@@ -13,11 +13,11 @@ export async function registerSlashCommands(clientId: string): Promise<void> {
   const rest = new REST().setToken(config.discord.token);
   const commands = DISCORD_COMMAND_DEFINITIONS.map((cmd) => cmd.toJSON());
 
-  await rest.put(Routes.applicationGuildCommands(clientId, config.discord.guildId), {
+  await rest.put(Routes.applicationGuildCommands(clientId, config.discord.serverId), {
     body: commands,
   });
 
   logger.info(
-    `[Discord] Registered ${commands.length} slash commands to guild ${config.discord.guildId}`,
+    `[Discord] Registered ${commands.length} slash commands to guild ${config.discord.serverId}`,
   );
 }

@@ -8,7 +8,7 @@ import {
 } from "./middleware/auth.js";
 import { summaryAggregator } from "../../summary/aggregator.js";
 import { ToolMessageBatcher } from "../../summary/tool-message-batcher.js";
-import { formatSummaryWithConfig } from "../../summary/formatter.js";
+import { formatSummaryWithConfig, formatToolInfo } from "../../summary/formatter.js";
 import { DISCORD_FORMAT_CONFIG } from "./formatter.js";
 import { discordPinnedMessageManager } from "./pinned-manager.js";
 import { registerSlashCommands } from "./commands/register.js";
@@ -41,6 +41,14 @@ import { handleHelpCommand } from "./commands/help.js";
 import { handleModelCommand } from "./commands/model.js";
 import { handleAgentCommand } from "./commands/agent.js";
 import { handleVariantCommand } from "./commands/variant.js";
+
+// Interaction handlers
+import { showDiscordQuestion, handleQuestionButtonInteraction } from "./handlers/question.js";
+import {
+  showDiscordPermissionRequest,
+  handlePermissionButtonInteraction,
+} from "./handlers/permission.js";
+import { questionManager } from "../../question/manager.js";
 
 let clientInstance: Client | null = null;
 let adapterInstance: DiscordAdapter | null = null;
@@ -93,12 +101,8 @@ function setupSummaryAggregatorCallbacks(): void {
         await adapterInstance!.sendMessage(part);
       }
     },
-    sendFile: async (sessionId, fileData) => {
-      const currentSession = getCurrentSession();
-      if (!currentSession || currentSession.id !== sessionId) return;
-      await adapterInstance!.sendDocument(Buffer.from(fileData.buffer), {
-        caption: fileData.caption,
-      });
+    sendFile: async () => {
+      // No-op: Discord does not upload file attachments for tool calls
     },
   });
 
@@ -109,20 +113,17 @@ function setupSummaryAggregatorCallbacks(): void {
     for (const part of parts) {
       await adapterInstance!.sendMessage(part);
     }
+    adapterInstance?.clearThreadId();
     clearSessionOwner(); // Session complete — unlock
   });
 
   summaryAggregator.setOnTool(async (toolInfo) => {
     const currentSession = getCurrentSession();
     if (!currentSession || currentSession.id !== toolInfo.sessionId) return;
-    const message = `💻 ${toolInfo.tool}`;
-    toolMessageBatcherInstance?.enqueue(toolInfo.sessionId, message);
-  });
-
-  summaryAggregator.setOnToolFile(async (fileInfo) => {
-    const currentSession = getCurrentSession();
-    if (!currentSession || currentSession.id !== fileInfo.sessionId) return;
-    toolMessageBatcherInstance?.enqueueFile(fileInfo.sessionId, fileInfo.fileData);
+    const message = formatToolInfo(toolInfo);
+    if (message) {
+      toolMessageBatcherInstance?.enqueue(toolInfo.sessionId, message);
+    }
   });
 
   summaryAggregator.setOnThinking(async (sessionId) => {
@@ -135,6 +136,7 @@ function setupSummaryAggregatorCallbacks(): void {
   summaryAggregator.setOnSessionError(async (sessionId, error) => {
     stopTypingIndicator();
     await adapterInstance!.sendMessage(t("bot.session_error", { message: error }));
+    adapterInstance?.clearThreadId();
     clearSessionOwner();
   });
 
@@ -152,6 +154,33 @@ function setupSummaryAggregatorCallbacks(): void {
 
   summaryAggregator.setOnCleared(() => {
     toolMessageBatcherInstance?.clearAll("summary_aggregator_clear");
+  });
+
+  summaryAggregator.setOnQuestion(async (questions, requestID) => {
+    if (!adapterInstance) return;
+    const currentSession = getCurrentSession();
+    if (currentSession) {
+      await toolMessageBatcherInstance?.flushSession(currentSession.id, "question_asked");
+    }
+    if (questionManager.isActive()) {
+      logger.warn("[Discord] Replacing active poll with a new one");
+      clearAllInteractionState("question_replaced_by_new_poll");
+    }
+    logger.info(`[Discord] Received ${questions.length} questions, requestID=${requestID}`);
+    questionManager.startQuestions(questions, requestID);
+    await showDiscordQuestion(adapterInstance);
+  });
+
+  summaryAggregator.setOnPermission(async (request) => {
+    if (!adapterInstance) return;
+    const currentSession = getCurrentSession();
+    if (currentSession) {
+      await toolMessageBatcherInstance?.flushSession(currentSession.id, "permission_asked");
+    }
+    logger.info(
+      `[Discord] Permission request: type=${request.permission}, requestID=${request.id}`,
+    );
+    await showDiscordPermissionRequest(adapterInstance, request);
   });
 }
 
@@ -323,6 +352,29 @@ export function createDiscordBot(): Client {
   });
 
   client.on(Events.InteractionCreate, async (interaction) => {
+    // Handle button interactions (questions, permissions)
+    if (interaction.isButton()) {
+      const customId = interaction.customId;
+      if (customId.startsWith("question:")) {
+        await handleQuestionButtonInteraction(interaction, adapterInstance!);
+      } else if (customId.startsWith("permission:")) {
+        await handlePermissionButtonInteraction(interaction, adapterInstance!);
+      }
+      return;
+    }
+
+    // Handle select menu interactions (sessions, projects)
+    if (interaction.isStringSelectMenu()) {
+      const { handleSessionSelectInteraction } = await import("./handlers/session.js");
+      const { handleProjectSelectInteraction } = await import("./handlers/project.js");
+      if (interaction.customId === "session:select") {
+        await handleSessionSelectInteraction(interaction, adapterInstance!);
+      } else if (interaction.customId === "project:select") {
+        await handleProjectSelectInteraction(interaction, adapterInstance!);
+      }
+      return;
+    }
+
     if (!interaction.isChatInputCommand()) return;
 
     const commandName = interaction.commandName;
@@ -392,6 +444,24 @@ export function createDiscordBot(): Client {
 
     const text = message.content.trim();
     if (!text) return;
+
+    // Create thread for guild messages so all bot replies stay organized
+    if (
+      message.channel.type === ChannelType.GuildText ||
+      message.channel.type === ChannelType.GuildAnnouncement
+    ) {
+      try {
+        const threadName = text.slice(0, 100) || "OpenCode Task";
+        const thread = await message.startThread({
+          name: threadName,
+          autoArchiveDuration: 60,
+        });
+        adapter.setThreadId(thread.id);
+        logger.debug(`[Discord] Created thread ${thread.id} for message ${message.id}`);
+      } catch (err) {
+        logger.warn("[Discord] Failed to create thread, replies will go to main channel", err);
+      }
+    }
 
     // Fire-and-forget prompt processing
     safeBackgroundTask({

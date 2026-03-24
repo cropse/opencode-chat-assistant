@@ -16,6 +16,55 @@ function parseCommaSeparatedNumbers(value: string): number[] {
     .filter((n) => !Number.isNaN(n));
 }
 
+/**
+ * Parse a config value that can be either a YAML list or a comma-separated string.
+ * Supports both formats:
+ *   allowedRoleIds: "role1,role2"       # comma-separated string
+ *   allowedRoleIds:                      # YAML list
+ *     - role1
+ *     - role2
+ */
+function getStringListValue(raw: Record<string, unknown>, key: string): string[] {
+  const value = getNestedValue(raw, key);
+  if (value === undefined || value === null) return [];
+
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item).trim()).filter(Boolean);
+  }
+
+  const str = String(value).trim();
+  if (!str) return [];
+
+  return str
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+/**
+ * Parse a config value that can be either a YAML list of numbers or a comma-separated string.
+ * Supports both formats:
+ *   allowedUserIds: "123,456"           # comma-separated string
+ *   allowedUserIds:                      # YAML list
+ *     - 123
+ *     - 456
+ */
+function getNumberListValue(raw: Record<string, unknown>, key: string): number[] {
+  const value = getNestedValue(raw, key);
+  if (value === undefined || value === null) return [];
+
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => (typeof item === "number" ? item : Number(String(item).trim())))
+      .filter((n) => !Number.isNaN(n));
+  }
+
+  const str = String(value).trim();
+  if (!str) return [];
+
+  return parseCommaSeparatedNumbers(str);
+}
+
 export type MessageFormatMode = "raw" | "markdown";
 
 function getNestedValue(obj: Record<string, unknown>, path: string): unknown {
@@ -185,21 +234,9 @@ export function buildConfig(raw: Record<string, unknown>) {
     },
     discord: {
       token: getStringValue(raw, "discord.token", false),
-      guildId: getStringValue(raw, "discord.guildId", false),
-      channelId: getStringValue(raw, "discord.channelId", false),
-      allowedRoleIds: (() => {
-        const roleIdsRaw = getStringValue(raw, "discord.allowedRoleIds", false);
-        return roleIdsRaw
-          ? roleIdsRaw
-              .split(",")
-              .map((s) => s.trim())
-              .filter(Boolean)
-          : [];
-      })(),
-      allowedUserIds: (() => {
-        const userIdsRaw = getStringValue(raw, "discord.allowedUserIds", false);
-        return userIdsRaw ? parseCommaSeparatedNumbers(userIdsRaw) : [];
-      })(),
+      serverId: getStringValue(raw, "discord.serverId", false),
+      allowedRoleIds: getStringListValue(raw, "discord.allowedRoleIds"),
+      allowedUserIds: getNumberListValue(raw, "discord.allowedUserIds"),
     },
   };
 }

@@ -39,8 +39,7 @@ vi.mock("../../../../src/config.js", () => ({
     },
     discord: {
       token: "DISCORD_TOKEN",
-      guildId: "123456789",
-      channelId: "987654321",
+      serverId: "123456789",
       allowedRoleIds: ["role123", "role456"],
       allowedUserIds: [123456789, 987654321],
     },
