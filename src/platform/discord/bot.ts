@@ -122,9 +122,10 @@ function setupSummaryAggregatorCallbacks(): void {
     adapterInstance?.clearThreadId();
     clearSessionOwner(); // Session complete — unlock
 
-    // Remove ⏳ reaction from the user's prompt message
+    // Remove ⏳ and 🛑 reactions from the user's prompt message
     if (lastPromptMessageRef && adapterInstance) {
       await adapterInstance.removeReaction(lastPromptMessageRef, "⏳").catch(() => {});
+      await adapterInstance.removeReaction(lastPromptMessageRef, "🛑").catch(() => {});
       lastPromptMessageRef = null;
     }
   });
@@ -151,9 +152,10 @@ function setupSummaryAggregatorCallbacks(): void {
     adapterInstance?.clearThreadId();
     clearSessionOwner();
 
-    // Remove ⏳ reaction from the user's prompt message
+    // Remove ⏳ and 🛑 reactions from the user's prompt message
     if (lastPromptMessageRef && adapterInstance) {
       await adapterInstance.removeReaction(lastPromptMessageRef, "⏳").catch(() => {});
+      await adapterInstance.removeReaction(lastPromptMessageRef, "🛑").catch(() => {});
       lastPromptMessageRef = null;
     }
   });
@@ -353,10 +355,11 @@ export function createDiscordBot(): Client {
     intents: [
       GatewayIntentBits.Guilds,
       GatewayIntentBits.GuildMessages,
+      GatewayIntentBits.GuildMessageReactions,
       GatewayIntentBits.DirectMessages,
       GatewayIntentBits.MessageContent,
     ],
-    partials: [Partials.Channel],
+    partials: [Partials.Channel, Partials.Message, Partials.Reaction],
   });
 
   clientInstance = client;
@@ -548,10 +551,11 @@ export function createDiscordBot(): Client {
       }
     }
 
-    // Add ⏳ reaction to indicate processing
+    // Add ⏳ + 🛑 reactions to indicate processing (🛑 can be clicked to abort)
     lastPromptMessageRef = message.id;
     try {
       await message.react("⏳");
+      await message.react("🛑");
     } catch {
       // Silent fail — bot may not have Add Reactions permission
     }
@@ -571,6 +575,49 @@ export function createDiscordBot(): Client {
         logger.error("[Discord] Prompt background error", err);
       },
     });
+  });
+
+  // Reaction-based abort — clicking 🛑 on the active prompt message interrupts the task
+  client.on(Events.MessageReactionAdd, async (reaction, user) => {
+    // Ignore bot reactions
+    if (user.bot) return;
+    // Only care about 🛑 on the currently-processing message
+    if (reaction.emoji.name !== "🛑") return;
+    if (!lastPromptMessageRef || reaction.message.id !== lastPromptMessageRef) return;
+
+    // Auth check — only the session owner or authorized users can abort via reaction
+    const currentOwner = getSessionOwner();
+    if (currentOwner && currentOwner !== user.id) return;
+
+    logger.info(`[Discord] Abort triggered via 🛑 reaction by user ${user.id}`);
+
+    const currentSession = getCurrentSession();
+    if (!currentSession) return;
+
+    try {
+      stopEventListening();
+      summaryAggregator.clear();
+      clearAllInteractionState("abort_reaction");
+      adapterInstance?.clearThreadId();
+
+      await opencodeClient.session.abort({
+        sessionID: currentSession.id,
+        directory: currentSession.directory,
+      });
+
+      // Clean up both reactions
+      if (adapterInstance) {
+        await adapterInstance.removeReaction(lastPromptMessageRef, "⏳").catch(() => {});
+        await adapterInstance.removeReaction(lastPromptMessageRef, "🛑").catch(() => {});
+      }
+      lastPromptMessageRef = null;
+      clearSessionOwner();
+
+      await adapterInstance?.sendMessage(t("stop.success"));
+    } catch (err) {
+      logger.error("[Discord] Reaction abort error:", err);
+      await adapterInstance?.sendMessage(t("stop.warn_unconfirmed"));
+    }
   });
 
   return client;
