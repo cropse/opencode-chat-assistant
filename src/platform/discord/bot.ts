@@ -63,6 +63,25 @@ let toolMessageBatcherInstance: ToolMessageBatcher | null = null;
 let lastPromptMessageRef: string | null = null;
 
 /**
+ * Maps Discord thread IDs → the session they were created for.
+ * Populated by /new and /sessions. Only threads in this map
+ * will receive prompts from the bot.
+ */
+const threadSessionMap = new Map<string, import("../../session/manager.js").SessionInfo>();
+
+/**
+ * Register a thread as belonging to a specific session.
+ * Called by /new and /sessions after createThreadFromInteraction().
+ */
+export function registerThreadSession(
+  threadId: string,
+  session: import("../../session/manager.js").SessionInfo,
+): void {
+  threadSessionMap.set(threadId, session);
+  logger.debug(`[Discord] Thread ${threadId} registered for session ${session.id}`);
+}
+
+/**
  * Start the typing indicator — sends typing every 8 seconds (Discord typing expires at 10s).
  */
 function startTypingIndicator(): void {
@@ -476,15 +495,53 @@ export function createDiscordBot(): Client {
     if (message.author.bot) return;
 
     const adapter = adapterInstance!;
-    adapter.setChatId(message.channelId);
 
-    // Auth check
-    if (!isAuthorizedDiscordUser(message)) {
-      const isDM = message.channel.type === ChannelType.DM;
-      await message.reply(
-        isDM ? t("discord.auth.unauthorized_dm") : t("discord.auth.unauthorized_channel"),
-      );
+    // Guild text channels: only slash commands are accepted — ignore plain messages
+    if (
+      message.channel.type === ChannelType.GuildText ||
+      message.channel.type === ChannelType.GuildAnnouncement
+    ) {
       return;
+    }
+
+    // DM channels: check auth by user ID
+    const isThread =
+      message.channel.type === ChannelType.PublicThread ||
+      message.channel.type === ChannelType.PrivateThread;
+
+    if (isThread) {
+      // Thread: only accept messages in threads we created
+      const threadSession = threadSessionMap.get(message.channelId);
+      if (!threadSession) {
+        // Not a bot-managed thread — ignore silently
+        return;
+      }
+
+      // Auth check
+      if (!isAuthorizedDiscordUser(message)) {
+        await message.reply(t("discord.auth.unauthorized_channel"));
+        return;
+      }
+
+      // Switch to this thread's session if it differs from current
+      const currentSession = getCurrentSession();
+      if (!currentSession || currentSession.id !== threadSession.id) {
+        setCurrentSession(threadSession);
+        summaryAggregator.clear();
+        summaryAggregator.setSession(threadSession.id);
+        clearAllInteractionState("thread_session_switch");
+        await autoSubscribeDiscordEvents(clientInstance!);
+      }
+
+      adapter.setChatId(message.channelId);
+      adapter.setThreadId(message.channelId);
+    } else {
+      // DM
+      if (!isAuthorizedDiscordUser(message)) {
+        await message.reply(t("discord.auth.unauthorized_dm"));
+        return;
+      }
+      adapter.setChatId(message.channelId);
     }
 
     // Session owner lock
@@ -530,24 +587,6 @@ export function createDiscordBot(): Client {
       if (busy) {
         await message.reply(t("bot.session_busy"));
         return;
-      }
-    }
-
-    // Create thread for guild messages so all bot replies stay organized
-    if (
-      message.channel.type === ChannelType.GuildText ||
-      message.channel.type === ChannelType.GuildAnnouncement
-    ) {
-      try {
-        const threadName = text.slice(0, 100) || "OpenCode Task";
-        const thread = await message.startThread({
-          name: threadName,
-          autoArchiveDuration: 60,
-        });
-        adapter.setThreadId(thread.id);
-        logger.debug(`[Discord] Created thread ${thread.id} for message ${message.id}`);
-      } catch (err) {
-        logger.warn("[Discord] Failed to create thread, replies will go to main channel", err);
       }
     }
 

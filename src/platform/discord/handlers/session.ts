@@ -12,6 +12,7 @@ import { discordPinnedMessageManager } from "../pinned-manager.js";
 import { logger } from "../../../utils/logger.js";
 import { t } from "../../../i18n/index.js";
 import { buildStatusSummary } from "../formatter.js";
+import { registerThreadSession } from "../bot.js";
 import type { DiscordAdapter } from "../adapter.js";
 
 export async function handleSessionSelectInteraction(
@@ -138,7 +139,14 @@ export async function handleSessionSelectInteraction(
     });
 
     // Create thread from the reply, then send status inside it
-    await adapter.createThreadFromInteraction(interaction, selectedSession.title);
+    const threadId = await adapter.createThreadFromInteraction(interaction, selectedSession.title);
+    if (threadId) {
+      registerThreadSession(threadId, {
+        id: selectedSession.id,
+        title: selectedSession.title,
+        directory: currentProject.worktree,
+      });
+    }
 
     // Send full status summary into the thread
     await adapter.sendMessage(summary);

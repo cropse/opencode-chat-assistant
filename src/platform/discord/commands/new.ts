@@ -6,6 +6,7 @@ import { getCurrentProject } from "../../../settings/manager.js";
 import { clearAllInteractionState } from "../../../interaction/cleanup.js";
 import { summaryAggregator } from "../../../summary/aggregator.js";
 import { getStoredAgent, getAgentDefaultModel } from "../../../agent/manager.js";
+import { registerThreadSession } from "../bot.js";
 import { logger } from "../../../utils/logger.js";
 import { t } from "../../../i18n/index.js";
 import type { DiscordAdapter } from "../adapter.js";
@@ -71,7 +72,14 @@ export async function handleNewCommand(
     await interaction.editReply({ content: `🧵 **${session.title}**` });
 
     // Create thread from the reply, then send status inside it
-    await deps.adapter.createThreadFromInteraction(interaction, session.title);
+    const threadId = await deps.adapter.createThreadFromInteraction(interaction, session.title);
+    if (threadId) {
+      registerThreadSession(threadId, {
+        id: session.id,
+        title: session.title,
+        directory: currentProject.worktree,
+      });
+    }
 
     const agent = getStoredAgent();
     const { getStoredModel } = await import("../../../model/manager.js");
