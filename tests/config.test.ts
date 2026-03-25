@@ -211,3 +211,92 @@ describe("config boolean parsing", () => {
     expect(config.bot.locale).toBe("en");
   });
 });
+
+describe("config maxActiveSessions parsing", () => {
+  const baseConfig = {
+    telegram: { token: "test-telegram-token", allowedUserId: "123456789" },
+  };
+
+  it("uses default value of 10 when not specified", () => {
+    const config = buildConfig(baseConfig);
+
+    expect(config.bot.maxActiveSessions).toBe(10);
+  });
+
+  it("parses custom maxActiveSessions value", () => {
+    const config = buildConfig({
+      ...baseConfig,
+      bot: {
+        maxActiveSessions: 5,
+      },
+    });
+
+    expect(config.bot.maxActiveSessions).toBe(5);
+  });
+
+  it("parses maxActiveSessions as string number", () => {
+    const config = buildConfig({
+      ...baseConfig,
+      bot: {
+        maxActiveSessions: "20",
+      },
+    });
+
+    expect(config.bot.maxActiveSessions).toBe(20);
+  });
+
+  it("throws error when maxActiveSessions is 0", () => {
+    expect(() => {
+      buildConfig({
+        ...baseConfig,
+        bot: {
+          maxActiveSessions: 0,
+        },
+      });
+    }).toThrow("bot.maxActiveSessions must be between 1 and 50");
+  });
+
+  it("throws error when maxActiveSessions is 51", () => {
+    expect(() => {
+      buildConfig({
+        ...baseConfig,
+        bot: {
+          maxActiveSessions: 51,
+        },
+      });
+    }).toThrow("bot.maxActiveSessions must be between 1 and 50");
+  });
+
+  it("throws error when maxActiveSessions is negative", () => {
+    expect(() => {
+      buildConfig({
+        ...baseConfig,
+        bot: {
+          maxActiveSessions: -5,
+        },
+      });
+    }).toThrow("bot.maxActiveSessions must be between 1 and 50");
+  });
+
+  it("accepts maxActiveSessions of 1 (minimum boundary)", () => {
+    const config = buildConfig({
+      ...baseConfig,
+      bot: {
+        maxActiveSessions: 1,
+      },
+    });
+
+    expect(config.bot.maxActiveSessions).toBe(1);
+  });
+
+  it("accepts maxActiveSessions of 50 (maximum boundary)", () => {
+    const config = buildConfig({
+      ...baseConfig,
+      bot: {
+        maxActiveSessions: 50,
+      },
+    });
+
+    expect(config.bot.maxActiveSessions).toBe(50);
+  });
+});

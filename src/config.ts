@@ -108,6 +108,30 @@ function getOptionalPositiveIntValue(
   return parsedValue;
 }
 
+function getOptionalIntValueWithRange(
+  raw: Record<string, unknown>,
+  key: string,
+  defaultValue: number,
+  min: number,
+  max: number,
+): number {
+  const value = getNestedValue(raw, key);
+  if (value === undefined || value === null) {
+    return defaultValue;
+  }
+
+  const parsedValue = typeof value === "number" ? value : Number.parseInt(String(value), 10);
+  if (Number.isNaN(parsedValue)) {
+    return defaultValue;
+  }
+
+  if (parsedValue < min || parsedValue > max) {
+    throw new Error(`${key} must be between ${min} and ${max}`);
+  }
+
+  return parsedValue;
+}
+
 function getOptionalNonNegativeIntValue(
   raw: Record<string, unknown>,
   key: string,
@@ -209,6 +233,7 @@ export function buildConfig(raw: Record<string, unknown>) {
       sessionsListLimit: getOptionalPositiveIntValue(raw, "bot.sessionsListLimit", 10),
       projectsListLimit: getOptionalPositiveIntValue(raw, "bot.projectsListLimit", 10),
       modelsListLimit: getOptionalPositiveIntValue(raw, "bot.modelsListLimit", 10),
+      maxActiveSessions: getOptionalIntValueWithRange(raw, "bot.maxActiveSessions", 10, 1, 50),
       locale: getOptionalLocaleValue(raw, "bot.locale", "en"),
       serviceMessagesIntervalSec: getOptionalNonNegativeIntValue(
         raw,

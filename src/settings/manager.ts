@@ -39,6 +39,8 @@ export interface Settings {
   discordChannelId?: string;
   /** Maps session IDs to Discord thread IDs for message routing */
   discordThreadMap?: Record<string, string>;
+  /** Maps session IDs to active SessionInfo for multi-session concurrency */
+  activeSessions?: Record<string, SessionInfo>;
   serverProcess?: ServerProcessInfo;
   sessionDirectoryCache?: SessionDirectoryCacheInfo;
 }
@@ -176,6 +178,20 @@ export function setDiscordThreadForSession(sessionId: string, threadId: string):
 
 export function getDiscordThreadForSession(sessionId: string): string | undefined {
   return currentSettings.discordThreadMap?.[sessionId];
+}
+
+export function getActiveSessionsMap(): Record<string, SessionInfo> {
+  return currentSettings.activeSessions ?? {};
+}
+
+export function setActiveSessionsMap(map: Record<string, SessionInfo>): void {
+  currentSettings.activeSessions = map;
+  void writeSettingsFile(currentSettings);
+}
+
+export function clearActiveSessions(): void {
+  currentSettings.activeSessions = {};
+  void writeSettingsFile(currentSettings);
 }
 
 export function getServerProcess(): ServerProcessInfo | undefined {

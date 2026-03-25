@@ -63,6 +63,7 @@ export async function resetSingletonState(): Promise<void> {
     { __resetSessionDirectoryCacheForTests },
     { clearProcessedMessages },
     { stopMessagePolling },
+    { activeSessionManager },
   ] = await Promise.all([
     import("../../src/question/manager.js"),
     import("../../src/permission/manager.js"),
@@ -76,6 +77,7 @@ export async function resetSingletonState(): Promise<void> {
     import("../../src/session/cache-manager.js"),
     import("../../src/opencode/processed-messages.js"),
     import("../../src/opencode/message-poller.js"),
+    import("../../src/session/active-session-manager.js"),
   ]);
 
   stopEventListening();
@@ -138,6 +140,7 @@ export async function resetSingletonState(): Promise<void> {
   };
 
   __resetSessionDirectoryCacheForTests();
+  activeSessionManager.reset();
 
   // Reset question poller
   const { resetQuestionPollerState } = await import("../../src/opencode/question-poller.js");

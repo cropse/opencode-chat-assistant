@@ -40,6 +40,8 @@ telegram:
 #   projectsListLimit: 10
 #   # Models per page in model picker
 #   modelsListLimit: 10
+#   # Max concurrent active sessions (1-50, default: 10)
+#   maxActiveSessions: 10
 #   # Service message batching interval in seconds (thinking + tool calls)
 #   # Recommended: keep >=2 to reduce risk of hitting Telegram rate limits
 #   # 0 = send immediately (can hit rate limits with many tool calls)
