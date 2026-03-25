@@ -10,7 +10,7 @@ import { summaryAggregator } from "../../summary/aggregator.js";
 import { ToolMessageBatcher } from "../../summary/tool-message-batcher.js";
 import { formatSummaryWithConfig } from "../../summary/formatter.js";
 import { DISCORD_FORMAT_CONFIG } from "./formatter.js";
-import { discordPinnedMessageManager } from "./pinned-manager.js";
+
 import { registerSlashCommands } from "./commands/register.js";
 import { subscribeToEvents, stopEventListening } from "../../opencode/events.js";
 import {
@@ -296,12 +296,8 @@ function setupSummaryAggregatorCallbacks(): void {
     adapterInstance.clearThreadId();
   });
 
-  summaryAggregator.setOnTokens(async (tokens) => {
-    await discordPinnedMessageManager.onTokensUpdated(tokens.input + tokens.output, 0);
-  });
-
-  summaryAggregator.setOnSessionDiff(async (_sessionId, fileChanges) => {
-    await discordPinnedMessageManager.onFilesChanged(fileChanges);
+  summaryAggregator.setOnSessionDiff(async (_sessionId, _fileChanges) => {
+    // Pinned message functionality removed
   });
 
   summaryAggregator.setOnCleared(() => {
@@ -316,14 +312,15 @@ function setupSummaryAggregatorCallbacks(): void {
     if (!threadId) return;
     adapterInstance.setThreadId(threadId);
     await toolMessageBatcherInstance?.flushSession(sessionId, "question_asked");
-    if (questionManager.isActive()) {
+    if (questionManager.isActive(sessionId)) {
       logger.warn("[Discord] Replacing active poll with a new one");
-      clearAllInteractionState("question_replaced_by_new_poll");
+      clearAllInteractionState("question_replaced_by_new_poll", sessionId);
     }
     logger.info(`[Discord] Received ${questions.length} questions, requestID=${requestID}`);
-    questionManager.startQuestions(questions, requestID);
+    questionManager.startQuestions(questions, requestID, sessionId);
     markQuestionSeen(requestID);
-    await showDiscordQuestion(adapterInstance);
+    await showDiscordQuestion(adapterInstance, sessionId);
+    adapterInstance.clearThreadId();
   });
 
   summaryAggregator.setOnPermission(async (request) => {
@@ -335,7 +332,8 @@ function setupSummaryAggregatorCallbacks(): void {
     logger.info(
       `[Discord] Permission request: type=${request.permission}, requestID=${request.id}`,
     );
-    await showDiscordPermissionRequest(adapterInstance, request);
+    await showDiscordPermissionRequest(adapterInstance, request, request.sessionID);
+    adapterInstance.clearThreadId();
   });
 
   // Handle question answered externally (e.g., from GUI) — "first answer wins"
@@ -346,16 +344,18 @@ function setupSummaryAggregatorCallbacks(): void {
       return;
     }
 
-    if (!questionManager.isActive()) return;
+    const questionSessionId = "default";
 
-    const activeRequestID = questionManager.getRequestID();
+    if (!questionManager.isActive(questionSessionId)) return;
+
+    const activeRequestID = questionManager.getRequestID(questionSessionId);
     if (activeRequestID && activeRequestID !== requestID) return;
 
     logger.info(
       `[Discord] Question answered externally (GUI): requestID=${requestID}, dismissing Discord poll`,
     );
 
-    const messageIds = questionManager.getMessageIds();
+    const messageIds = questionManager.getMessageIds(questionSessionId);
     for (const messageId of messageIds) {
       if (adapterInstance) {
         adapterInstance.editMessage(messageId, t("question.answered_externally")).catch((err) => {
@@ -364,7 +364,7 @@ function setupSummaryAggregatorCallbacks(): void {
       }
     }
 
-    clearAllInteractionState("question_answered_externally");
+    clearAllInteractionState("question_answered_externally", questionSessionId);
   });
 
   // Handle permission answered externally (e.g., from GUI)
@@ -392,10 +392,9 @@ function setupSummaryAggregatorCallbacks(): void {
     clearAllInteractionState("permission_answered_externally");
   });
 
-  // Handle session compacted — reload context tokens in pinned embed
-  summaryAggregator.setOnSessionCompacted(async (sessionId, directory) => {
-    logger.info(`[Discord] Session compacted: ${sessionId}, reloading context`);
-    await discordPinnedMessageManager.onSessionCompacted(sessionId, directory);
+  // Handle session compacted — reload context
+  summaryAggregator.setOnSessionCompacted(async (sessionId, _directory) => {
+    logger.info(`[Discord] Session compacted: ${sessionId}`);
   });
 }
 
@@ -525,16 +524,15 @@ async function sendPrompt(
 
   let currentSession = getCurrentSession();
 
-  // Session/project mismatch check
+  // Session/project mismatch — clear stale session and fall through to auto-create
   if (currentSession && currentSession.directory !== project.worktree) {
     logger.warn(
-      `[Discord] Session/project mismatch: sessionDirectory=${currentSession.directory}, projectDirectory=${project.worktree}`,
+      `[Discord] Session/project mismatch: sessionDirectory=${currentSession.directory}, projectDirectory=${project.worktree}. Clearing and auto-creating.`,
     );
     stopEventListening();
     summaryAggregator.clear();
-    clearAllInteractionState("session_mismatch_reset");
-    await adapter.sendMessage(t("bot.session_reset_project_mismatch"));
-    return;
+    clearAllInteractionState("session_mismatch_reset", currentSession.id);
+    currentSession = undefined;
   }
 
   if (!currentSession) {
@@ -558,22 +556,9 @@ async function sendPrompt(
     };
     setCurrentSession(currentSession);
     await ingestSessionInfoForCache(session);
-    await discordPinnedMessageManager.onSessionChanged(
-      session.id,
-      session.title,
-      project.name || project.worktree,
-    );
     await adapter.sendMessage(t("bot.session_created", { title: session.title }));
   } else {
     logger.info(`[Discord] Using existing session: ${currentSession.id}`);
-    // Ensure pinned message exists
-    if (!discordPinnedMessageManager.getState().messageRef) {
-      await discordPinnedMessageManager.onSessionChanged(
-        currentSession.id,
-        currentSession.title,
-        project.name || project.worktree,
-      );
-    }
   }
 
   await autoSubscribeDiscordEvents(clientInstance!);
@@ -581,14 +566,8 @@ async function sendPrompt(
   activeSessionManager.activate(currentSession);
   summaryAggregator.setSession(currentSession.id);
 
-  // Always update pinned embed with the active session's title
-  await discordPinnedMessageManager.onSessionChanged(
-    currentSession.id,
-    currentSession.title,
-    project.name || project.worktree,
-  );
-
   const sessionIsBusy = await isSessionBusy(currentSession.id, currentSession.directory);
+
   if (sessionIsBusy) {
     await adapter.sendMessage(t("bot.session_busy"));
     return;
@@ -664,7 +643,6 @@ export function createDiscordBot(): Client {
 
   clientInstance = client;
   adapterInstance = new DiscordAdapter(client);
-  discordPinnedMessageManager.initialize(adapterInstance);
   setupSummaryAggregatorCallbacks();
 
   client.on(Events.ClientReady, async (readyClient) => {
@@ -716,7 +694,11 @@ export function createDiscordBot(): Client {
     if (interaction.isModalSubmit()) {
       const customId = interaction.customId;
       if (customId.startsWith("question:modal:")) {
-        await handleQuestionModalSubmit(interaction, adapterInstance!);
+        const modalSessionId =
+          (interaction.channelId ? threadSessionMap.get(interaction.channelId)?.id : undefined) ??
+          getCurrentSession()?.id ??
+          "default";
+        await handleQuestionModalSubmit(interaction, adapterInstance!, modalSessionId);
       }
       return;
     }
@@ -724,10 +706,13 @@ export function createDiscordBot(): Client {
     // Handle button interactions (questions, permissions, agent selection, commands)
     if (interaction.isButton()) {
       const customId = interaction.customId;
+      // Resolve sessionId from the thread the button was clicked in
+      const buttonSessionId =
+        threadSessionMap.get(interaction.channelId)?.id ?? getCurrentSession()?.id ?? "default";
       if (customId.startsWith("question:")) {
-        await handleQuestionButtonInteraction(interaction, adapterInstance!);
+        await handleQuestionButtonInteraction(interaction, adapterInstance!, buttonSessionId);
       } else if (customId.startsWith("permission:")) {
-        await handlePermissionButtonInteraction(interaction, adapterInstance!);
+        await handlePermissionButtonInteraction(interaction, adapterInstance!, buttonSessionId);
       } else if (customId.startsWith("agent:")) {
         const { handleAgentButtonInteraction } = await import("./handlers/agent.js");
         await handleAgentButtonInteraction(interaction, adapterInstance!);
@@ -792,7 +777,7 @@ export function createDiscordBot(): Client {
       case "projects":
         return handleProjectsCommand(interaction);
       case "rename":
-        return handleRenameCommand(interaction);
+        return handleRenameCommand(interaction, { adapter: adapterInstance! });
       case "commands":
         return handleCommandsCommand(interaction, {
           adapter: adapterInstance!,
@@ -893,7 +878,9 @@ export function createDiscordBot(): Client {
     if (!text) return;
 
     // Interaction guard — block prompts while a question/permission is pending
-    const guardDecision = resolveInteractionGuardDecision({ type: "text", text });
+    // Use the thread's session ID so that a question in thread A does NOT block thread B
+    const guardSessionId = threadSessionMap.get(message.channelId)?.id;
+    const guardDecision = resolveInteractionGuardDecision({ type: "text", text }, guardSessionId);
     if (!guardDecision.allow) {
       const kind = guardDecision.state?.kind;
       const reason = guardDecision.reason;
@@ -1063,14 +1050,18 @@ export async function autoSubscribeDiscordEvents(_client: Client): Promise<void>
     if (!adapterInstance?.isReady()) return;
 
     // Skip if this question is already being shown
-    if (questionManager.isActive() && questionManager.getRequestID() === requestID) return;
+    if (
+      questionManager.isActive(sessionId) &&
+      questionManager.getRequestID(sessionId) === requestID
+    )
+      return;
 
     logger.info(
       `[Discord] Question discovered by poller: requestID=${requestID}, questions=${questions.length}`,
     );
 
-    if (questionManager.isActive()) {
-      clearAllInteractionState("question_replaced_by_poller");
+    if (questionManager.isActive(sessionId)) {
+      clearAllInteractionState("question_replaced_by_poller", sessionId);
     }
 
     const threadId = getDiscordThreadForSession(sessionId);
@@ -1078,8 +1069,8 @@ export async function autoSubscribeDiscordEvents(_client: Client): Promise<void>
     adapterInstance.setThreadId(threadId);
     await toolMessageBatcherInstance?.flushSession(sessionId, "question_polled");
 
-    questionManager.startQuestions(questions, requestID);
+    questionManager.startQuestions(questions, requestID, sessionId);
     markQuestionSeen(requestID);
-    await showDiscordQuestion(adapterInstance);
+    await showDiscordQuestion(adapterInstance, sessionId);
   });
 }

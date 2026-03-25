@@ -57,18 +57,21 @@ const PERMISSION_EMOJIS: Record<string, string> = {
   lsp: "🔧",
 };
 
-function clearPermissionInteraction(reason: string): void {
-  const state = interactionManager.getSnapshot();
+function clearPermissionInteraction(reason: string, sessionId: string): void {
+  const state = interactionManager.getSnapshot(sessionId);
   if (state?.kind === "permission") {
-    interactionManager.clear(reason);
+    interactionManager.clear(reason, sessionId);
   }
 }
 
-function syncPermissionInteractionState(metadata: Record<string, unknown> = {}): void {
+function syncPermissionInteractionState(
+  sessionId: string,
+  metadata: Record<string, unknown> = {},
+): void {
   const pendingCount = permissionManager.getPendingCount();
 
   if (pendingCount === 0) {
-    clearPermissionInteraction("permission_no_pending_requests");
+    clearPermissionInteraction("permission_no_pending_requests", sessionId);
     return;
   }
 
@@ -77,20 +80,26 @@ function syncPermissionInteractionState(metadata: Record<string, unknown> = {}):
     ...metadata,
   };
 
-  const state = interactionManager.getSnapshot();
+  const state = interactionManager.getSnapshot(sessionId);
   if (state?.kind === "permission") {
-    interactionManager.transition({
-      expectedInput: "callback",
-      metadata: nextMetadata,
-    });
+    interactionManager.transition(
+      {
+        expectedInput: "callback",
+        metadata: nextMetadata,
+      },
+      sessionId,
+    );
     return;
   }
 
-  interactionManager.start({
-    kind: "permission",
-    expectedInput: "callback",
-    metadata: nextMetadata,
-  });
+  interactionManager.start(
+    {
+      kind: "permission",
+      expectedInput: "callback",
+      metadata: nextMetadata,
+    },
+    sessionId,
+  );
 }
 
 /**
@@ -149,6 +158,7 @@ function buildPermissionButtons(requestId: string): ActionRowBuilder<ButtonBuild
 export async function showDiscordPermissionRequest(
   adapter: DiscordAdapter,
   request: PermissionRequest,
+  sessionId: string,
 ): Promise<void> {
   logger.debug(`[DiscordPermissionHandler] Showing permission request: ${request.permission}`);
 
@@ -161,7 +171,7 @@ export async function showDiscordPermissionRequest(
     logger.debug(`[DiscordPermissionHandler] Message sent, messageId=${messageId}`);
     permissionManager.startPermission(request, messageId);
 
-    syncPermissionInteractionState({
+    syncPermissionInteractionState(sessionId, {
       requestID: request.id,
       messageId,
     });
@@ -180,6 +190,7 @@ export async function handlePermissionButtonInteraction(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   interaction: any,
   adapter: DiscordAdapter,
+  sessionId: string,
 ): Promise<void> {
   const customId = interaction?.customId;
   if (!customId || !customId.startsWith("permission:")) {
@@ -194,7 +205,7 @@ export async function handlePermissionButtonInteraction(
   logger.debug(`[DiscordPermissionHandler] Received button: ${customId}`);
 
   if (!permissionManager.isActive()) {
-    clearPermissionInteraction("permission_inactive_callback");
+    clearPermissionInteraction("permission_inactive_callback", sessionId);
     if (typeof interaction.reply === "function") {
       await interaction.reply({
         content: t("permission.inactive_callback"),
@@ -230,7 +241,7 @@ export async function handlePermissionButtonInteraction(
       return;
   }
 
-  await handlePermissionReply(interaction, adapter, reply, requestId);
+  await handlePermissionReply(interaction, adapter, reply, requestId, sessionId);
 }
 
 async function handlePermissionReply(
@@ -239,6 +250,7 @@ async function handlePermissionReply(
   adapter: DiscordAdapter,
   reply: "once" | "always" | "reject",
   requestId: string,
+  sessionId: string,
 ): Promise<void> {
   const currentProject = getCurrentProject();
   const currentSession = getCurrentSession();
@@ -246,7 +258,7 @@ async function handlePermissionReply(
 
   if (!directory) {
     permissionManager.clear();
-    clearPermissionInteraction("permission_invalid_runtime_context");
+    clearPermissionInteraction("permission_invalid_runtime_context", sessionId);
 
     if (typeof interaction.reply === "function") {
       await interaction.reply({
@@ -310,11 +322,11 @@ async function handlePermissionReply(
   permissionManager.removeByMessageId(messageId);
 
   if (!permissionManager.isActive()) {
-    clearPermissionInteraction("permission_replied");
+    clearPermissionInteraction("permission_replied", sessionId);
     return;
   }
 
-  syncPermissionInteractionState({
+  syncPermissionInteractionState(sessionId, {
     lastRepliedRequestID: requestId,
   });
 }

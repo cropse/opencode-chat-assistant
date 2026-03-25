@@ -1,7 +1,7 @@
 import {
   ChannelType,
   type DMChannel,
-  type EmbedBuilder,
+  // type EmbedBuilder, // Used for future embed features
   type TextChannel,
   type ThreadChannel,
 } from "discord.js";
@@ -118,6 +118,49 @@ export class DiscordAdapter implements PlatformAdapter {
     return null;
   }
 
+  /**
+   * Rename a Discord thread by its ID.
+   *
+   * @param threadId - Thread ID
+   * @param name - New thread name (truncated to 100 chars)
+   * @returns true on success, false on failure or if thread not renameable
+   */
+  async renameThread(threadId: string, name: string): Promise<boolean> {
+    const threadName = name.substring(0, 100);
+
+    try {
+      // Try cache first, then fetch if not found
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let channel: any = this.client.channels.cache.get(threadId);
+      if (!channel) {
+        channel = await this.client.channels.fetch(threadId);
+      }
+
+      if (!channel) {
+        logger.warn(`[DiscordAdapter] Thread ${threadId} not found`);
+        return false;
+      }
+
+      // Duck-type check for setName method
+      if (typeof (channel as { setName?: unknown }).setName === "function") {
+        await (channel as { setName(n: string): Promise<unknown> }).setName(threadName);
+        logger.info(`[DiscordAdapter] Renamed thread ${threadId} to "${threadName}"`);
+        return true;
+      }
+
+      logger.warn(`[DiscordAdapter] Thread ${threadId} does not have setName method`);
+      return false;
+    } catch (err) {
+      const errorStr = String(err);
+      if (errorStr.includes("rate limit") || errorStr.includes("429")) {
+        logger.warn("[DiscordAdapter] Thread rename rate-limited");
+      } else {
+        logger.warn("[DiscordAdapter] Failed to rename thread:", err);
+      }
+      return false;
+    }
+  }
+
   private async getTextChannel(): Promise<TextChannel | DMChannel | ThreadChannel> {
     const targetId = this.threadChannelId ?? this.channelId;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -152,24 +195,6 @@ export class DiscordAdapter implements PlatformAdapter {
     return msg.id;
   }
 
-  /**
-   * Send a message with an embed (Discord-specific).
-   */
-  async sendEmbed(embed: EmbedBuilder): Promise<PlatformMessageRef> {
-    const channel = await this.getTextChannel();
-    const msg = await channel.send({ embeds: [embed] });
-    return msg.id;
-  }
-
-  /**
-   * Edit a message to update its embed (Discord-specific).
-   */
-  async editEmbed(messageRef: PlatformMessageRef, embed: EmbedBuilder): Promise<void> {
-    const channel = await this.getTextChannel();
-    const message = await channel.messages.fetch(messageRef);
-    await message.edit({ embeds: [embed] });
-  }
-
   async sendDocument(
     file: unknown,
     options?: PlatformDocumentOptions,
@@ -201,18 +226,6 @@ export class DiscordAdapter implements PlatformAdapter {
     const channel = await this.getTextChannel();
     const message = await channel.messages.fetch(messageRef);
     await message.delete();
-  }
-
-  async pinMessage(messageRef: PlatformMessageRef): Promise<void> {
-    const channel = await this.getTextChannel();
-    const message = await channel.messages.fetch(messageRef);
-    await message.pin();
-  }
-
-  async unpinAllMessages(): Promise<void> {
-    const channel = await this.getTextChannel();
-    const pinned = await channel.messages.fetchPinned();
-    await Promise.all(pinned.map((msg) => msg.unpin()));
   }
 
   async answerCallbackQuery(

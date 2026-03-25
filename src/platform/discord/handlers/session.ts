@@ -8,7 +8,6 @@ import { clearAllInteractionState } from "../../../interaction/cleanup.js";
 import { fetchSessionAgentAndModel, selectAgent, getStoredAgent } from "../../../agent/manager.js";
 import { getAgentDisplayName } from "../../../agent/types.js";
 import { selectModel, getStoredModel } from "../../../model/manager.js";
-import { discordPinnedMessageManager } from "../pinned-manager.js";
 import { logger } from "../../../utils/logger.js";
 import { t } from "../../../i18n/index.js";
 import { buildStatusSummary } from "../formatter.js";
@@ -87,7 +86,6 @@ export async function handleSessionSelectInteraction(
     // Build status summary
     const agent = getStoredAgent();
     const model = getStoredModel();
-    const pinnedState = discordPinnedMessageManager.getState();
     const projectName =
       (currentProject.name || currentProject.worktree).split(/[\\/]/).pop() ||
       currentProject.worktree;
@@ -140,7 +138,6 @@ export async function handleSessionSelectInteraction(
       model: model.providerID && model.modelID ? model.modelID : "Auto (agent default)",
       variant: model.variant,
       tokensUsed: tokensUsed || undefined,
-      tokensLimit: pinnedState.tokensLimit || undefined,
     });
 
     if (lastMessagePreview) {
@@ -185,9 +182,9 @@ export async function handleSessionSelectInteraction(
         logger.info(
           `[Discord] Session switch: found pending question ${qId} for session ${selectedSession.id}`,
         );
-        questionManager.startQuestions(questions, qId);
+        questionManager.startQuestions(questions, qId, selectedSession.id);
         markQuestionSeen(qId);
-        await showDiscordQuestion(adapter);
+        await showDiscordQuestion(adapter, selectedSession.id);
         break; // Only show the first pending question
       }
     } catch (err) {

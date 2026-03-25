@@ -1,11 +1,19 @@
 import type { ChatInputCommandInteraction } from "discord.js";
 import { opencodeClient } from "../../../opencode/client.js";
 import { getCurrentSession, setCurrentSession } from "../../../session/manager.js";
-import { discordPinnedMessageManager } from "../pinned-manager.js";
+import { getDiscordThreadForSession } from "../../../settings/manager.js";
 import { logger } from "../../../utils/logger.js";
 import { t } from "../../../i18n/index.js";
+import type { DiscordAdapter } from "../adapter.js";
 
-export async function handleRenameCommand(interaction: ChatInputCommandInteraction): Promise<void> {
+export interface RenameDeps {
+  adapter: DiscordAdapter;
+}
+
+export async function handleRenameCommand(
+  interaction: ChatInputCommandInteraction,
+  deps: RenameDeps,
+): Promise<void> {
   await interaction.deferReply();
 
   try {
@@ -41,12 +49,10 @@ export async function handleRenameCommand(interaction: ChatInputCommandInteracti
       directory: currentSession.directory,
     });
 
-    if (discordPinnedMessageManager.isInitialized()) {
-      await discordPinnedMessageManager.onSessionChanged(
-        currentSession.id,
-        newName,
-        currentSession.directory,
-      );
+    // Sync Discord thread name with the new session title
+    const threadId = getDiscordThreadForSession(currentSession.id);
+    if (threadId) {
+      await deps.adapter.renameThread(threadId, newName);
     }
 
     await interaction.editReply({

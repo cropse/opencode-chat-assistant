@@ -199,6 +199,7 @@ const STATUS_COLORS = {
 
 /**
  * Creates a Discord embed for displaying session/project status.
+ * Used by the /status slash command and similar status display features.
  *
  * @param data - Status data to display in the embed
  * @returns EmbedBuilder configured with the status information

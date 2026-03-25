@@ -60,8 +60,6 @@ describe("platform/discord/adapter", () => {
       expect(typeof adapter.sendPhoto).toBe("function");
       expect(typeof adapter.editMessage).toBe("function");
       expect(typeof adapter.deleteMessage).toBe("function");
-      expect(typeof adapter.pinMessage).toBe("function");
-      expect(typeof adapter.unpinAllMessages).toBe("function");
       expect(typeof adapter.answerCallbackQuery).toBe("function");
       expect(typeof adapter.sendTyping).toBe("function");
       expect(typeof adapter.setCommands).toBe("function");
@@ -301,81 +299,6 @@ describe("platform/discord/adapter", () => {
 
       expect(mockChannel.messages.fetch).toHaveBeenCalledWith("msg-123");
       expect(mockMessage.delete).toHaveBeenCalled();
-    });
-  });
-
-  describe("pinMessage", () => {
-    it("pins message by ID", async () => {
-      const mockMessage = {
-        pin: vi.fn().mockResolvedValue(undefined),
-      };
-      const mockChannel = {
-        type: 0, // GuildText
-        messages: {
-          fetch: vi.fn().mockResolvedValue(mockMessage),
-        },
-      };
-      const mockClient = {
-        channels: {
-          cache: { get: vi.fn().mockReturnValue(mockChannel) },
-          fetch: vi.fn(),
-        },
-      };
-
-      const adapter = new DiscordAdapter(mockClient);
-      adapter.setChatId("channel-123");
-      await adapter.pinMessage("msg-123");
-
-      expect(mockChannel.messages.fetch).toHaveBeenCalledWith("msg-123");
-      expect(mockMessage.pin).toHaveBeenCalled();
-    });
-  });
-
-  describe("unpinAllMessages", () => {
-    it("unpins all pinned messages", async () => {
-      const mockMessages = [
-        { unpin: vi.fn().mockResolvedValue(undefined) },
-        { unpin: vi.fn().mockResolvedValue(undefined) },
-      ];
-      const mockChannel = {
-        type: 0, // GuildText
-        messages: {
-          fetchPinned: vi.fn().mockResolvedValue(mockMessages),
-        },
-      };
-      const mockClient = {
-        channels: {
-          cache: { get: vi.fn().mockReturnValue(mockChannel) },
-          fetch: vi.fn(),
-        },
-      };
-
-      const adapter = new DiscordAdapter(mockClient);
-      adapter.setChatId("channel-123");
-      await adapter.unpinAllMessages();
-
-      expect(mockChannel.messages.fetchPinned).toHaveBeenCalled();
-      expect(mockMessages[0].unpin).toHaveBeenCalled();
-      expect(mockMessages[1].unpin).toHaveBeenCalled();
-    });
-
-    it("handles channel with no pinned messages", async () => {
-      const mockChannel = {
-        type: 0, // GuildText
-        messages: {
-          fetchPinned: vi.fn().mockResolvedValue([]),
-        },
-      };
-      const mockClient = {
-        channels: {
-          cache: { get: vi.fn().mockReturnValue(mockChannel) },
-          fetch: vi.fn(),
-        },
-      };
-
-      const adapter = new DiscordAdapter(mockClient);
-      adapter.setChatId("channel-123");
-      await expect(adapter.unpinAllMessages()).resolves.toBeUndefined();
     });
   });
 

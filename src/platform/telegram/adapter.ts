@@ -97,16 +97,6 @@ export class TelegramAdapter implements PlatformAdapter {
     await this.api.deleteMessage(this.chatId, fromMessageRef(messageRef));
   }
 
-  async pinMessage(messageRef: PlatformMessageRef): Promise<void> {
-    await this.api.pinChatMessage(this.chatId, fromMessageRef(messageRef), {
-      disable_notification: true,
-    });
-  }
-
-  async unpinAllMessages(): Promise<void> {
-    await this.api.unpinAllChatMessages(this.chatId);
-  }
-
   async answerCallbackQuery(
     callbackId: string,
     options?: PlatformCallbackQueryOptions,

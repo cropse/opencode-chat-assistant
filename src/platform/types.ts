@@ -68,12 +68,6 @@ export interface PlatformAdapter {
   // Delete a message
   deleteMessage(messageRef: PlatformMessageRef): Promise<void>;
 
-  // Pin a message in the chat
-  pinMessage(messageRef: PlatformMessageRef): Promise<void>;
-
-  // Unpin all messages in the chat
-  unpinAllMessages(): Promise<void>;
-
   // Answer a callback query (acknowledge button press)
   answerCallbackQuery(callbackId: string, options?: PlatformCallbackQueryOptions): Promise<void>;
 

@@ -25,20 +25,24 @@ const MAX_BUTTON_LABEL_LENGTH = 80;
 // Max buttons per ActionRow (Discord limit)
 const MAX_BUTTONS_PER_ROW = 5;
 
-function clearQuestionInteraction(reason: string): void {
-  const state = interactionManager.getSnapshot();
+function clearQuestionInteraction(reason: string, sessionId: string): void {
+  const state = interactionManager.getSnapshot(sessionId);
   if (state?.kind === "question") {
-    interactionManager.clear(reason);
+    interactionManager.clear(reason, sessionId);
   }
 }
 
-function syncQuestionInteractionState(questionIndex: number, messageId: string | null): void {
+function syncQuestionInteractionState(
+  questionIndex: number,
+  messageId: string | null,
+  sessionId: string,
+): void {
   const metadata: Record<string, unknown> = {
     questionIndex,
     inputMode: "options",
   };
 
-  const requestID = questionManager.getRequestID();
+  const requestID = questionManager.getRequestID(sessionId);
   if (requestID) {
     metadata.requestID = requestID;
   }
@@ -47,32 +51,41 @@ function syncQuestionInteractionState(questionIndex: number, messageId: string |
     metadata.messageId = messageId;
   }
 
-  const state = interactionManager.getSnapshot();
+  const state = interactionManager.getSnapshot(sessionId);
   if (state?.kind === "question") {
-    interactionManager.transition({
-      expectedInput: "callback",
-      metadata,
-    });
+    interactionManager.transition(
+      {
+        expectedInput: "callback",
+        metadata,
+      },
+      sessionId,
+    );
     return;
   }
 
-  interactionManager.start({
-    kind: "question",
-    expectedInput: "callback",
-    metadata,
-  });
+  interactionManager.start(
+    {
+      kind: "question",
+      expectedInput: "callback",
+      metadata,
+    },
+    sessionId,
+  );
 }
 
 /**
  * Format question text for Discord (no markdown, Discord handles formatting)
  */
-function formatQuestionText(question: {
-  header: string;
-  question: string;
-  multiple?: boolean;
-}): string {
-  const currentIndex = questionManager.getCurrentIndex();
-  const totalQuestions = questionManager.getTotalQuestions();
+function formatQuestionText(
+  question: {
+    header: string;
+    question: string;
+    multiple?: boolean;
+  },
+  sessionId: string,
+): string {
+  const currentIndex = questionManager.getCurrentIndex(sessionId);
+  const totalQuestions = questionManager.getTotalQuestions(sessionId);
   const progressText = totalQuestions > 0 ? `${currentIndex + 1}/${totalQuestions}` : "";
 
   const headerTitle = [progressText, question.header].filter(Boolean).join(" ");
@@ -87,8 +100,9 @@ function formatQuestionText(question: {
 function buildQuestionButtons(
   questionIndex: number,
   selectedOptions: Set<number>,
+  sessionId: string,
 ): ActionRowBuilder<ButtonBuilder>[] {
-  const question = questionManager.getCurrentQuestion();
+  const question = questionManager.getCurrentQuestion(sessionId);
   if (!question) return [];
 
   const rows: ActionRowBuilder<ButtonBuilder>[] = [];
@@ -150,11 +164,14 @@ function buildQuestionButtons(
 /**
  * Show the current question to the user
  */
-export async function showDiscordQuestion(adapter: DiscordAdapter): Promise<void> {
-  const question = questionManager.getCurrentQuestion();
+export async function showDiscordQuestion(
+  adapter: DiscordAdapter,
+  sessionId: string,
+): Promise<void> {
+  const question = questionManager.getCurrentQuestion(sessionId);
 
   if (!question) {
-    await showPollSummary(adapter);
+    await showPollSummary(adapter, sessionId);
     return;
   }
 
@@ -162,10 +179,11 @@ export async function showDiscordQuestion(adapter: DiscordAdapter): Promise<void
     `[DiscordQuestionHandler] Showing question: ${question.header} - ${question.question}`,
   );
 
-  const text = formatQuestionText(question);
+  const text = formatQuestionText(question, sessionId);
   const rows = buildQuestionButtons(
-    questionManager.getCurrentIndex(),
-    questionManager.getSelectedOptions(questionManager.getCurrentIndex()),
+    questionManager.getCurrentIndex(sessionId),
+    questionManager.getSelectedOptions(questionManager.getCurrentIndex(sessionId), sessionId),
+    sessionId,
   );
 
   try {
@@ -173,14 +191,14 @@ export async function showDiscordQuestion(adapter: DiscordAdapter): Promise<void
 
     logger.debug(`[DiscordQuestionHandler] Message sent, messageId=${messageId}`);
 
-    questionManager.addMessageId(messageId);
-    questionManager.setActiveMessageId(messageId);
-    syncQuestionInteractionState(questionManager.getCurrentIndex(), messageId);
+    questionManager.addMessageId(messageId, sessionId);
+    questionManager.setActiveMessageId(messageId, sessionId);
+    syncQuestionInteractionState(questionManager.getCurrentIndex(sessionId), messageId, sessionId);
 
     summaryAggregator.stopTypingIndicator();
   } catch (err) {
-    questionManager.clear();
-    clearQuestionInteraction("question_message_send_failed");
+    questionManager.clear(sessionId);
+    clearQuestionInteraction("question_message_send_failed", sessionId);
     logger.error("[DiscordQuestionHandler] Failed to send question message:", err);
     throw err;
   }
@@ -193,6 +211,7 @@ export async function handleQuestionButtonInteraction(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   interaction: any,
   adapter: DiscordAdapter,
+  sessionId: string,
 ): Promise<void> {
   const customId = interaction?.customId;
   if (!customId || !customId.startsWith("question:")) {
@@ -214,15 +233,15 @@ export async function handleQuestionButtonInteraction(
 
   logger.debug(`[DiscordQuestionHandler] Received button: ${customId}`);
 
-  if (!questionManager.isActive()) {
-    clearQuestionInteraction("question_inactive_callback");
+  if (!questionManager.isActive(sessionId)) {
+    clearQuestionInteraction("question_inactive_callback", sessionId);
     if (typeof interaction.reply === "function") {
       await interaction.reply({ content: t("question.inactive_callback"), ephemeral: true });
     }
     return;
   }
 
-  if (Number.isNaN(questionIndex) || questionIndex !== questionManager.getCurrentIndex()) {
+  if (Number.isNaN(questionIndex) || questionIndex !== questionManager.getCurrentIndex(sessionId)) {
     if (typeof interaction.reply === "function") {
       await interaction.reply({
         content: t("question.inactive_callback"),
@@ -237,11 +256,11 @@ export async function handleQuestionButtonInteraction(
       case "select":
         {
           if (Number.isNaN(optionIndex)) break;
-          await handleSelectOption(adapter, questionIndex, optionIndex);
+          await handleSelectOption(adapter, questionIndex, optionIndex, sessionId);
         }
         break;
       case "submit":
-        await handleSubmitAnswer(adapter, questionIndex);
+        await handleSubmitAnswer(adapter, questionIndex, sessionId);
         break;
       case "custom":
         {
@@ -250,7 +269,7 @@ export async function handleQuestionButtonInteraction(
             .setCustomId(`question:modal:${questionIndex}`)
             .setTitle(t("question.button.custom"));
 
-          const question = questionManager.getCurrentQuestion();
+          const question = questionManager.getCurrentQuestion(sessionId);
           const placeholder = question?.question.substring(0, 100) ?? "Your answer";
 
           const textInput = new TextInputBuilder()
@@ -272,7 +291,7 @@ export async function handleQuestionButtonInteraction(
         }
         break;
       case "cancel":
-        await handleCancelPoll(adapter);
+        await handleCancelPoll(adapter, sessionId);
         break;
     }
   } catch (err) {
@@ -290,50 +309,56 @@ async function handleSelectOption(
   adapter: DiscordAdapter,
   questionIndex: number,
   optionIndex: number,
+  sessionId: string,
 ): Promise<void> {
   logger.debug(
     `[DiscordQuestionHandler] handleSelectOption: qIndex=${questionIndex}, oIndex=${optionIndex}`,
   );
 
-  const question = questionManager.getCurrentQuestion();
+  const question = questionManager.getCurrentQuestion(sessionId);
   if (!question) {
     logger.debug("[DiscordQuestionHandler] No current question");
     return;
   }
 
-  questionManager.selectOption(questionIndex, optionIndex);
+  questionManager.selectOption(questionIndex, optionIndex, sessionId);
 
   if (question.multiple) {
     // Update the message with new button states
-    const text = formatQuestionText(question);
+    const text = formatQuestionText(question, sessionId);
     const rows = buildQuestionButtons(
       questionIndex,
-      questionManager.getSelectedOptions(questionIndex),
+      questionManager.getSelectedOptions(questionIndex, sessionId),
+      sessionId,
     );
 
-    const activeMessageId = questionManager.getActiveMessageId();
+    const activeMessageId = questionManager.getActiveMessageId(sessionId);
     if (activeMessageId) {
       await adapter.editMessage(activeMessageId, text, { replyMarkup: rows });
     }
   } else {
     // Single choice: move to next question
-    const answer = questionManager.getSelectedAnswer(questionIndex);
+    const answer = questionManager.getSelectedAnswer(questionIndex, sessionId);
     logger.debug(
       `[DiscordQuestionHandler] Selected answer for question ${questionIndex}: ${answer}`,
     );
 
     // Delete the question message
-    const activeMessageId = questionManager.getActiveMessageId();
+    const activeMessageId = questionManager.getActiveMessageId(sessionId);
     if (activeMessageId) {
       await adapter.deleteMessage(activeMessageId).catch(() => {});
     }
 
-    await showNextQuestion(adapter);
+    await showNextQuestion(adapter, sessionId);
   }
 }
 
-async function handleSubmitAnswer(adapter: DiscordAdapter, questionIndex: number): Promise<void> {
-  const answer = questionManager.getSelectedAnswer(questionIndex);
+async function handleSubmitAnswer(
+  adapter: DiscordAdapter,
+  questionIndex: number,
+  sessionId: string,
+): Promise<void> {
+  const answer = questionManager.getSelectedAnswer(questionIndex, sessionId);
 
   if (!answer) {
     if (typeof adapter.sendMessage === "function") {
@@ -345,47 +370,47 @@ async function handleSubmitAnswer(adapter: DiscordAdapter, questionIndex: number
   logger.debug(`[DiscordQuestionHandler] Submit answer for question ${questionIndex}: ${answer}`);
 
   // Delete the question message
-  const activeMessageId = questionManager.getActiveMessageId();
+  const activeMessageId = questionManager.getActiveMessageId(sessionId);
   if (activeMessageId) {
     await adapter.deleteMessage(activeMessageId).catch(() => {});
   }
 
-  await showNextQuestion(adapter);
+  await showNextQuestion(adapter, sessionId);
 }
 
-async function handleCancelPoll(adapter: DiscordAdapter): Promise<void> {
-  questionManager.cancel();
-  clearQuestionInteraction("question_cancelled");
+async function handleCancelPoll(adapter: DiscordAdapter, sessionId: string): Promise<void> {
+  questionManager.cancel(sessionId);
+  clearQuestionInteraction("question_cancelled", sessionId);
 
   // Edit the message to show cancelled
-  const activeMessageId = questionManager.getActiveMessageId();
+  const activeMessageId = questionManager.getActiveMessageId(sessionId);
   if (activeMessageId) {
     await adapter.editMessage(activeMessageId, t("question.cancelled"));
   }
 
-  questionManager.clear();
+  questionManager.clear(sessionId);
 }
 
-async function showNextQuestion(adapter: DiscordAdapter): Promise<void> {
-  questionManager.nextQuestion();
+async function showNextQuestion(adapter: DiscordAdapter, sessionId: string): Promise<void> {
+  questionManager.nextQuestion(sessionId);
 
-  if (questionManager.hasNextQuestion()) {
-    await showDiscordQuestion(adapter);
+  if (questionManager.hasNextQuestion(sessionId)) {
+    await showDiscordQuestion(adapter, sessionId);
   } else {
-    await showPollSummary(adapter);
+    await showPollSummary(adapter, sessionId);
   }
 }
 
-async function showPollSummary(adapter: DiscordAdapter): Promise<void> {
-  const answers = questionManager.getAllAnswers();
-  const totalQuestions = questionManager.getTotalQuestions();
+async function showPollSummary(adapter: DiscordAdapter, sessionId: string): Promise<void> {
+  const answers = questionManager.getAllAnswers(sessionId);
+  const totalQuestions = questionManager.getTotalQuestions(sessionId);
 
   logger.info(
     `[DiscordQuestionHandler] Poll completed: ${answers.length}/${totalQuestions} questions answered`,
   );
 
   // Send all answers to the OpenCode API
-  await sendAllAnswersToAgent(adapter);
+  await sendAllAnswersToAgent(adapter, sessionId);
 
   if (answers.length === 0) {
     await adapter.sendMessage(t("question.completed_no_answers"));
@@ -394,16 +419,16 @@ async function showPollSummary(adapter: DiscordAdapter): Promise<void> {
     await adapter.sendMessage(summary);
   }
 
-  clearQuestionInteraction("question_completed");
-  questionManager.clear();
+  clearQuestionInteraction("question_completed", sessionId);
+  questionManager.clear(sessionId);
   logger.debug("[DiscordQuestionHandler] Poll completed and cleared");
 }
 
-async function sendAllAnswersToAgent(adapter: DiscordAdapter): Promise<void> {
+async function sendAllAnswersToAgent(adapter: DiscordAdapter, sessionId: string): Promise<void> {
   const currentProject = getCurrentProject();
   const currentSession = getCurrentSession();
-  const requestID = questionManager.getRequestID();
-  const totalQuestions = questionManager.getTotalQuestions();
+  const requestID = questionManager.getRequestID(sessionId);
+  const totalQuestions = questionManager.getTotalQuestions(sessionId);
   const directory = currentSession?.directory ?? currentProject?.worktree;
 
   if (!directory) {
@@ -422,8 +447,8 @@ async function sendAllAnswersToAgent(adapter: DiscordAdapter): Promise<void> {
   const allAnswers: string[][] = [];
 
   for (let i = 0; i < totalQuestions; i++) {
-    const customAnswer = questionManager.getCustomAnswer(i);
-    const selectedAnswer = questionManager.getSelectedAnswer(i);
+    const customAnswer = questionManager.getCustomAnswer(i, sessionId);
+    const selectedAnswer = questionManager.getSelectedAnswer(i, sessionId);
 
     const answer = customAnswer || selectedAnswer || "";
 
@@ -484,6 +509,7 @@ export async function handleQuestionModalSubmit(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   interaction: any,
   adapter: DiscordAdapter,
+  sessionId: string,
 ): Promise<void> {
   const customId = interaction?.customId;
   if (!customId || !customId.startsWith("question:modal:")) return;
@@ -505,13 +531,13 @@ export async function handleQuestionModalSubmit(
     `[DiscordQuestionHandler] Modal custom answer for question ${questionIndex}: ${customAnswer.substring(0, 80)}...`,
   );
 
-  questionManager.setCustomAnswer(questionIndex, customAnswer.trim());
+  questionManager.setCustomAnswer(questionIndex, customAnswer.trim(), sessionId);
 
   // Delete the question message and advance
-  const activeMessageId = questionManager.getActiveMessageId();
+  const activeMessageId = questionManager.getActiveMessageId(sessionId);
   if (activeMessageId) {
     await adapter.deleteMessage(activeMessageId).catch(() => {});
   }
 
-  await showNextQuestion(adapter);
+  await showNextQuestion(adapter, sessionId);
 }

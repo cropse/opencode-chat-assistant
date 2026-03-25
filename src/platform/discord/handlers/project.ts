@@ -9,7 +9,6 @@ import { clearAllInteractionState } from "../../../interaction/cleanup.js";
 import { getStoredAgent } from "../../../agent/manager.js";
 import { getAgentDisplayName } from "../../../agent/types.js";
 import { getStoredModel } from "../../../model/manager.js";
-import { discordPinnedMessageManager } from "../pinned-manager.js";
 import { logger } from "../../../utils/logger.js";
 import { t } from "../../../i18n/index.js";
 import { buildStatusSummary } from "../formatter.js";
@@ -50,7 +49,6 @@ export async function handleProjectSelectInteraction(
     const projectName = shortenProjectName(selectedProject.name || selectedProject.worktree);
     const agent = getStoredAgent();
     const model = getStoredModel();
-    const pinnedState = discordPinnedMessageManager.getState();
     const summary = buildStatusSummary({
       action: `Project → ${projectName}`,
       project: projectName,
@@ -58,8 +56,6 @@ export async function handleProjectSelectInteraction(
       agent: getAgentDisplayName(agent),
       model: model.providerID && model.modelID ? model.modelID : "Auto (agent default)",
       variant: model.variant,
-      tokensUsed: pinnedState.tokensUsed,
-      tokensLimit: pinnedState.tokensLimit,
     });
 
     await interaction.editReply({

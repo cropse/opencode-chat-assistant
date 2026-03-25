@@ -185,24 +185,6 @@ describe("platform/telegram/adapter", () => {
     expect(api.deleteMessage).toHaveBeenCalledWith(777, 55);
   });
 
-  it("pinMessage delegates to api.pinChatMessage with silent option", async () => {
-    api.pinChatMessage.mockResolvedValueOnce(true);
-
-    await adapter.pinMessage("56");
-
-    expect(api.pinChatMessage).toHaveBeenCalledWith(777, 56, {
-      disable_notification: true,
-    });
-  });
-
-  it("unpinAllMessages delegates to api.unpinAllChatMessages", async () => {
-    api.unpinAllChatMessages.mockResolvedValueOnce(true);
-
-    await adapter.unpinAllMessages();
-
-    expect(api.unpinAllChatMessages).toHaveBeenCalledWith(777);
-  });
-
   it("answerCallbackQuery delegates to api.answerCallbackQuery", async () => {
     api.answerCallbackQuery.mockResolvedValueOnce(true);
 
