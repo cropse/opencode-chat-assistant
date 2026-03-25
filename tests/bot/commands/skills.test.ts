@@ -53,11 +53,10 @@ describe("bot/commands/skills", () => {
 
     expect(sendWithMarkdownFallback.sendMessageWithMarkdownFallback).toHaveBeenCalledTimes(1);
     const call = vi.mocked(sendWithMarkdownFallback.sendMessageWithMarkdownFallback).mock.calls[0];
-    expect(call[0].text).toContain("🛠 Available Skills");
-    expect(call[0].text).toContain("*Skill One*");
-    expect(call[0].text).toContain("Description one");
-    expect(call[0].text).toContain("*Skill Two*");
-    expect(call[0].text).toContain("Description two");
+    expect(call[0].text).toContain("Available Skills");
+    expect(call[0].text).toContain("`Skill One`");
+    expect(call[0].text).toContain("`Skill Two`");
+    expect(call[0].text).toContain("/skills verbose");
   });
 
   it("shows 'empty' message when no skills available", async () => {

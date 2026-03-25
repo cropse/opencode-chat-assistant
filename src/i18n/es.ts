@@ -398,6 +398,10 @@ export const es: I18nDictionary = {
   "skills.empty": "🛠 No hay skills disponibles para este proyecto.",
   "skills.title": "Skills disponibles",
   "skills.error": "🔴 Error al cargar los skills.",
+  "skills.not_found":
+    '🔍 Skill "{name}" no encontrado. Usa /skills para ver los skills disponibles.',
+  "skills.executing": "🛠 Ejecutando skill: /{name}",
+  "skills.execute_error": "🔴 Error al ejecutar el skill.",
 
   "discord.auth.unauthorized_channel": "⛔ No tienes el rol requerido para usar este bot.",
   "discord.auth.unauthorized_dm": "⛔ No estás autorizado para acceso por DM.",

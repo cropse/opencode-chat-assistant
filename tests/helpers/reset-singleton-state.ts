@@ -142,4 +142,8 @@ export async function resetSingletonState(): Promise<void> {
   // Reset question poller
   const { resetQuestionPollerState } = await import("../../src/opencode/question-poller.js");
   resetQuestionPollerState();
+
+  // Reset skill cache
+  const { clearSkillCache } = await import("../../src/skill/manager.js");
+  clearSkillCache();
 }

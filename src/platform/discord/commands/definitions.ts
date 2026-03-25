@@ -25,7 +25,16 @@ export const DISCORD_COMMAND_DEFINITIONS = [
 
   new SlashCommandBuilder().setName("commands").setDescription(t("cmd.description.commands")),
 
-  new SlashCommandBuilder().setName("skills").setDescription(t("cmd.description.skills")),
+  new SlashCommandBuilder()
+    .setName("skills")
+    .setDescription(t("cmd.description.skills"))
+    .addStringOption((opt) =>
+      opt
+        .setName("name")
+        .setDescription("Skill name to invoke, or 'verbose' for detailed list")
+        .setRequired(false)
+        .setAutocomplete(true),
+    ),
 
   new SlashCommandBuilder()
     .setName("opencode_start")

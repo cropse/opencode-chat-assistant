@@ -50,7 +50,7 @@ import { handleSessionsCommand } from "./commands/sessions.js";
 import { handleProjectsCommand } from "./commands/projects.js";
 import { handleRenameCommand } from "./commands/rename.js";
 import { handleCommandsCommand } from "./commands/commands.js";
-import { handleSkillsCommand } from "./commands/skills.js";
+import { handleSkillsCommand, handleSkillsAutocomplete } from "./commands/skills.js";
 import { handleOpencodeStartCommand } from "./commands/opencode-start.js";
 import { handleOpencodeStopCommand } from "./commands/opencode-stop.js";
 import { handleHelpCommand } from "./commands/help.js";
@@ -76,8 +76,11 @@ let typingInterval: ReturnType<typeof setInterval> | null = null;
 let eventSubscriptionAbortController: AbortController | null = null;
 let toolMessageBatcherInstance: ToolMessageBatcher | null = null;
 let lastPromptMessageRef: string | null = null;
+let lastPromptThreadId: string | null = null;
 let lastBotQuestionReplyID: string | null = null;
 let lastBotPermissionReplyID: string | null = null;
+let pollerDoneTimer: ReturnType<typeof setTimeout> | null = null;
+const POLLER_DONE_DEBOUNCE_MS = 8000;
 
 /**
  * Maps Discord thread IDs → the session they were created for.
@@ -207,8 +210,9 @@ function setupSummaryAggregatorCallbacks(): void {
     if (!threadId) return;
     adapterInstance.setThreadId(threadId);
 
-    // Capture prompt author before clearing
+    // Capture prompt author and thread before clearing
     const promptAuthor = getSessionOwner();
+    const promptThreadId = lastPromptThreadId;
     const mention = promptAuthor ? ` <@${promptAuthor}>` : "";
     await adapterInstance.sendMessage(t("bot.session_error", { message: error }) + mention);
     adapterInstance.clearThreadId();
@@ -216,9 +220,21 @@ function setupSummaryAggregatorCallbacks(): void {
 
     // Remove ⏳ and 🛑 reactions from the user's prompt message
     if (lastPromptMessageRef && adapterInstance) {
+      // Temporarily bind to the thread where the prompt was sent
+      const savedThread = adapterInstance.getThreadId();
+      if (promptThreadId) {
+        adapterInstance.setThreadId(promptThreadId);
+      }
       await adapterInstance.removeReaction(lastPromptMessageRef, "⏳").catch(() => {});
       await adapterInstance.removeReaction(lastPromptMessageRef, "🛑").catch(() => {});
+      // Restore previous thread binding
+      if (savedThread) {
+        adapterInstance.setThreadId(savedThread);
+      } else {
+        adapterInstance.clearThreadId();
+      }
       lastPromptMessageRef = null;
+      lastPromptThreadId = null;
     }
   });
 
@@ -227,25 +243,50 @@ function setupSummaryAggregatorCallbacks(): void {
   summaryAggregator.setOnSessionIdle(async (sessionId) => {
     stopTypingIndicator();
 
-    // Capture prompt author before clearing
+    // Capture prompt author and thread before clearing
     const promptAuthor = getSessionOwner();
+    const promptThreadId = lastPromptThreadId;
     clearSessionOwner();
 
     // Remove ⏳ and 🛑 reactions from the user's prompt message
     if (lastPromptMessageRef && adapterInstance) {
+      // Temporarily bind to the thread where the prompt was sent
+      const savedThread = adapterInstance.getThreadId();
+      if (promptThreadId) {
+        adapterInstance.setThreadId(promptThreadId);
+      }
       await adapterInstance.removeReaction(lastPromptMessageRef, "⏳").catch(() => {});
       await adapterInstance.removeReaction(lastPromptMessageRef, "🛑").catch(() => {});
+      // Restore previous thread binding
+      if (savedThread) {
+        adapterInstance.setThreadId(savedThread);
+      } else {
+        adapterInstance.clearThreadId();
+      }
       lastPromptMessageRef = null;
+      lastPromptThreadId = null;
     }
 
     // Ping the user who sent the prompt to notify them the task is done
+    logger.debug(
+      `[Discord] onSessionIdle ping check: promptAuthor=${promptAuthor}, adapterReady=${adapterInstance?.isReady()}, sessionId=${sessionId}, promptThreadId=${promptThreadId}`,
+    );
     if (promptAuthor && adapterInstance?.isReady()) {
-      const threadId = getDiscordThreadForSession(sessionId);
+      const threadId = getDiscordThreadForSession(sessionId) ?? promptThreadId;
+      logger.debug(
+        `[Discord] onSessionIdle ping: threadId=${threadId}, sessionThreadId=${getDiscordThreadForSession(sessionId)}, fallback=${promptThreadId}`,
+      );
       if (threadId) {
         adapterInstance.setThreadId(threadId);
-        await adapterInstance.sendMessage(`✅ Done <@${promptAuthor}>`);
+        await adapterInstance.sendMessage(`✅ Done <@${promptAuthor}>`).catch((err) => {
+          logger.error("[Discord] Failed to send done ping:", err);
+        });
         adapterInstance.clearThreadId();
+      } else {
+        logger.warn("[Discord] No thread found for done ping — skipping");
       }
+    } else {
+      logger.debug("[Discord] Skipped done ping: no promptAuthor or adapter not ready");
     }
   });
 
@@ -387,11 +428,81 @@ function startDiscordPollerForSession(sessionId: string, directory: string): voi
         for (const part of parts) {
           await adapterInstance!.sendMessage(part);
         }
+        adapterInstance!.clearThreadId();
       },
       onError: (err) => {
         logger.error("[MessagePoller] Failed to send polled message to Discord:", err);
       },
     });
+
+    // Debounce the "done" cleanup: reset timer on every polled message.
+    // Only fire after POLLER_DONE_DEBOUNCE_MS of quiet AND session is idle.
+    if (pollerDoneTimer) {
+      clearTimeout(pollerDoneTimer);
+    }
+    pollerDoneTimer = setTimeout(() => {
+      pollerDoneTimer = null;
+
+      safeBackgroundTask({
+        taskName: "message_poller.done_ping",
+        task: async () => {
+          // Verify the session is actually idle before pinging.
+          // If still busy, skip — the next polled message will re-arm the timer.
+          const currentSession = getCurrentSession();
+          if (currentSession) {
+            const busy = await isSessionBusy(currentSession.id, currentSession.directory);
+            if (busy) {
+              logger.debug("[MessagePoller] Session still busy after debounce, skipping done ping");
+              return;
+            }
+          }
+
+          logger.info("[MessagePoller] Session idle confirmed, cleaning up reactions and pinging");
+
+          const promptAuthor = getSessionOwner();
+          const promptThreadId = lastPromptThreadId;
+          clearSessionOwner();
+          stopTypingIndicator();
+
+          // Remove reactions
+          if (lastPromptMessageRef && adapterInstance) {
+            const savedThread = adapterInstance.getThreadId();
+            if (promptThreadId) {
+              adapterInstance.setThreadId(promptThreadId);
+            }
+            await adapterInstance.removeReaction(lastPromptMessageRef, "⏳").catch(() => {});
+            await adapterInstance.removeReaction(lastPromptMessageRef, "🛑").catch(() => {});
+            if (savedThread) {
+              adapterInstance.setThreadId(savedThread);
+            } else {
+              adapterInstance.clearThreadId();
+            }
+            lastPromptMessageRef = null;
+            lastPromptThreadId = null;
+          }
+
+          // Send done ping
+          if (promptAuthor && adapterInstance?.isReady()) {
+            const doneThreadId = getDiscordThreadForSession(polledSessionId) ?? promptThreadId;
+            if (doneThreadId) {
+              adapterInstance.setThreadId(doneThreadId);
+              await adapterInstance.sendMessage(`✅ Done <@${promptAuthor}>`);
+              adapterInstance.clearThreadId();
+              logger.info(`[MessagePoller] Sent done ping to <@${promptAuthor}>`);
+            } else {
+              logger.warn("[MessagePoller] No thread found for done ping");
+            }
+          } else {
+            logger.debug(
+              `[MessagePoller] Skipped done ping: promptAuthor=${promptAuthor}, adapterReady=${adapterInstance?.isReady()}`,
+            );
+          }
+        },
+        onError: (err) => {
+          logger.error("[MessagePoller] Done ping task failed:", err);
+        },
+      });
+    }, POLLER_DONE_DEBOUNCE_MS);
   }).catch((err: unknown) => {
     logger.warn("[MessagePoller] Failed to start polling:", err);
   });
@@ -654,6 +765,14 @@ export function createDiscordBot(): Client {
       return;
     }
 
+    // Handle autocomplete interactions (must respond within 3s)
+    if (interaction.isAutocomplete()) {
+      if (interaction.commandName === "skills") {
+        await handleSkillsAutocomplete(interaction);
+      }
+      return;
+    }
+
     if (!interaction.isChatInputCommand()) return;
 
     const commandName = interaction.commandName;
@@ -682,7 +801,11 @@ export function createDiscordBot(): Client {
             autoSubscribeDiscordEvents(clientInstance!),
         });
       case "skills":
-        return handleSkillsCommand(interaction);
+        return handleSkillsCommand(interaction, {
+          adapter: adapterInstance!,
+          ensureEventSubscription: (_directory: string) =>
+            autoSubscribeDiscordEvents(clientInstance!),
+        });
       case "opencode_start":
         return handleOpencodeStartCommand(interaction);
       case "opencode_stop":
@@ -809,6 +932,7 @@ export function createDiscordBot(): Client {
 
     // Add ⏳ + 🛑 reactions to indicate processing (🛑 can be clicked to abort)
     lastPromptMessageRef = message.id;
+    lastPromptThreadId = adapterInstance?.getThreadId() ?? message.channelId;
     try {
       await message.react("⏳");
       await message.react("🛑");
@@ -867,6 +991,7 @@ export function createDiscordBot(): Client {
         await adapterInstance.removeReaction(lastPromptMessageRef, "🛑").catch(() => {});
       }
       lastPromptMessageRef = null;
+      lastPromptThreadId = null;
       clearSessionOwner();
 
       await adapterInstance?.sendMessage(t("stop.success"));

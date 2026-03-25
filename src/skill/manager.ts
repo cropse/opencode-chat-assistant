@@ -2,6 +2,16 @@ import { config } from "../config.js";
 import { logger } from "../utils/logger.js";
 import type { SkillInfo } from "./types.js";
 
+const CACHE_TTL_MS = 30_000; // 30 seconds
+
+interface SkillCache {
+  skills: SkillInfo[];
+  timestamp: number;
+  directory: string | undefined;
+}
+
+let skillCache: SkillCache | null = null;
+
 const getAuth = () => {
   if (!config.opencode.password) {
     return undefined;
@@ -11,11 +21,22 @@ const getAuth = () => {
 };
 
 /**
- * Get list of available skills from OpenCode API
+ * Get list of available skills from OpenCode API.
+ * Results are cached for 30s to support Discord autocomplete (3s timeout).
  * @param directory Optional project directory
  * @returns Array of available skills
  */
 export async function getAvailableSkills(directory?: string): Promise<SkillInfo[]> {
+  const now = Date.now();
+  if (
+    skillCache &&
+    skillCache.directory === directory &&
+    now - skillCache.timestamp < CACHE_TTL_MS
+  ) {
+    logger.debug(`[SkillManager] Returning ${skillCache.skills.length} cached skills`);
+    return skillCache.skills;
+  }
+
   try {
     const url = new URL("/skill", config.opencode.apiUrl);
     if (directory) {
@@ -43,9 +64,22 @@ export async function getAvailableSkills(directory?: string): Promise<SkillInfo[
 
     const skills = (await response.json()) as SkillInfo[];
     logger.debug(`[SkillManager] Fetched ${skills.length} available skills`);
+
+    skillCache = { skills, timestamp: now, directory };
+
     return skills;
   } catch (err) {
+    // On error, return stale cache if available
+    if (skillCache && skillCache.directory === directory) {
+      logger.warn("[SkillManager] Fetch failed, returning stale cache");
+      return skillCache.skills;
+    }
     logger.error("[SkillManager] Error fetching skills:", err);
     throw err;
   }
+}
+
+/** Clear the skills cache (useful for tests) */
+export function clearSkillCache(): void {
+  skillCache = null;
 }

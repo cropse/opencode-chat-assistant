@@ -386,6 +386,10 @@ export const ru: I18nDictionary = {
   "skills.empty": "🛠 Нет доступных навыков для этого проекта.",
   "skills.title": "Доступные навыки",
   "skills.error": "🔴 Ошибка при загрузке навыков.",
+  "skills.not_found":
+    '🔍 Навык "{name}" не найден. Используйте /skills для просмотра доступных навыков.',
+  "skills.executing": "🛠 Выполняется навык: /{name}",
+  "skills.execute_error": "🔴 Ошибка при выполнении навыка.",
 
   "discord.auth.unauthorized_channel":
     "⛔ У вас нет необходимой роли для использования этого бота.",

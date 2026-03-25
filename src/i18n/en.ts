@@ -383,6 +383,9 @@ export const en = {
   "skills.empty": "🛠 No skills available for this project.",
   "skills.title": "Available Skills",
   "skills.error": "🔴 Failed to load skills.",
+  "skills.not_found": '🔍 Skill "{name}" not found. Use /skills to see available skills.',
+  "skills.executing": "🛠 Executing skill: /{name}",
+  "skills.execute_error": "🔴 Failed to execute skill.",
 
   "discord.auth.unauthorized_channel": "⛔ You don't have the required role to use this bot.",
   "discord.auth.unauthorized_dm": "⛔ You are not authorized for DM access.",

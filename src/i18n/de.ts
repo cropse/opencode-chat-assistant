@@ -399,6 +399,10 @@ export const de: I18nDictionary = {
   "skills.empty": "🛠 Keine Skills für dieses Projekt verfügbar.",
   "skills.title": "Verfügbare Skills",
   "skills.error": "🔴 Fehler beim Laden der Skills.",
+  "skills.not_found":
+    '🔍 Skill "{name}" nicht gefunden. Verwende /skills um verfügbare Skills anzuzeigen.',
+  "skills.executing": "🛠 Skill wird ausgeführt: /{name}",
+  "skills.execute_error": "🔴 Fehler beim Ausführen des Skills.",
 
   "discord.auth.unauthorized_channel":
     "⛔ Du hast nicht die erforderliche Rolle, um diesen Bot zu nutzen.",

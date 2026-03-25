@@ -25,13 +25,14 @@ vi.mock("../../src/utils/logger.js", () => ({
   },
 }));
 
-import { getAvailableSkills } from "../../src/skill/manager.js";
+import { getAvailableSkills, clearSkillCache } from "../../src/skill/manager.js";
 import type { SkillInfo } from "../../src/skill/types.js";
 
 describe("skill/manager", () => {
   beforeEach(() => {
     // Reset and setup the mock
     fetchMock.mockReset();
+    clearSkillCache();
 
     // Mock global fetch - must be done in beforeEach to override native fetch
     vi.stubGlobal("fetch", fetchMock);
