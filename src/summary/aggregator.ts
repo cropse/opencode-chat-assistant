@@ -380,10 +380,15 @@ class SummaryAggregator {
   }
 
   setSession(sessionId: string): void {
-    if (this.focusedSessionId !== sessionId) {
-      this.clear();
-      this.focusedSessionId = sessionId;
-    }
+    this.focusedSessionId = sessionId;
+  }
+
+  /**
+   * Pre-creates a bucket for a session so it's ready to receive events.
+   * Does NOT clear other sessions' buckets.
+   */
+  activateSession(sessionId: string): void {
+    this.getBucket(sessionId);
   }
 
   clear(): void {
@@ -415,9 +420,9 @@ class SummaryAggregator {
       `[Aggregator] message.updated: role=${info.role}, sessionID=${info.sessionID}, currentSession=${this.focusedSessionId}`,
     );
 
-    if (info.sessionID !== this.focusedSessionId) {
+    if (!this.isSessionActive(info.sessionID)) {
       logger.debug(
-        `[Aggregator] Skipping message.updated — session mismatch (event=${info.sessionID}, current=${this.focusedSessionId})`,
+        `[Aggregator] Skipping message.updated — session not active (event=${info.sessionID}, focused=${this.focusedSessionId})`,
       );
       return;
     }
@@ -510,7 +515,7 @@ class SummaryAggregator {
       `[Aggregator] message.part.updated: type=${part.type}, sessionID=${part.sessionID}, currentSession=${this.focusedSessionId}`,
     );
 
-    if (part.sessionID !== this.focusedSessionId) {
+    if (!this.isSessionActive(part.sessionID)) {
       return;
     }
 
@@ -655,7 +660,7 @@ class SummaryAggregator {
   private handleMessagePartDelta(event: MessagePartDeltaEvent): void {
     const { sessionID, messageID, field, delta } = event.properties;
 
-    if (sessionID !== this.focusedSessionId) {
+    if (!this.isSessionActive(sessionID)) {
       return;
     }
 
@@ -827,7 +832,7 @@ class SummaryAggregator {
       };
     };
 
-    if (sessionID !== this.focusedSessionId) {
+    if (!this.isSessionActive(sessionID)) {
       return;
     }
 
@@ -859,7 +864,7 @@ class SummaryAggregator {
   ): void {
     const { sessionID } = event.properties;
 
-    if (sessionID !== this.focusedSessionId) {
+    if (!this.isSessionActive(sessionID)) {
       return;
     }
 
@@ -883,7 +888,7 @@ class SummaryAggregator {
     const properties = event.properties as { sessionID: string };
     const { sessionID } = properties;
 
-    if (sessionID !== this.focusedSessionId) {
+    if (!this.isSessionActive(sessionID)) {
       return;
     }
 
@@ -914,7 +919,7 @@ class SummaryAggregator {
       };
     };
 
-    if (sessionID !== this.focusedSessionId) {
+    if (!this.isSessionActive(sessionID)) {
       return;
     }
 
@@ -939,9 +944,9 @@ class SummaryAggregator {
   ): void {
     const { id, sessionID, questions } = event.properties;
 
-    if (sessionID !== this.focusedSessionId) {
+    if (!this.isSessionActive(sessionID)) {
       logger.info(
-        `[Aggregator] Question from different session: ${sessionID} (current: ${this.focusedSessionId}), showing anyway for cross-client sync`,
+        `[Aggregator] Question from non-active session: ${sessionID} (focused: ${this.focusedSessionId}), showing anyway for cross-client sync`,
       );
     }
 
@@ -965,7 +970,7 @@ class SummaryAggregator {
       diff: Array<{ file: string; additions: number; deletions: number }>;
     };
 
-    if (properties.sessionID !== this.focusedSessionId) {
+    if (!this.isSessionActive(properties.sessionID)) {
       return;
     }
 
@@ -992,9 +997,9 @@ class SummaryAggregator {
   ): void {
     const request = event.properties;
 
-    if (request.sessionID !== this.focusedSessionId) {
+    if (!this.isSessionActive(request.sessionID)) {
       logger.info(
-        `[Aggregator] Permission from different session: ${request.sessionID} (current: ${this.focusedSessionId}), showing anyway for cross-client sync`,
+        `[Aggregator] Permission from non-active session: ${request.sessionID} (focused: ${this.focusedSessionId}), showing anyway for cross-client sync`,
       );
     }
 
