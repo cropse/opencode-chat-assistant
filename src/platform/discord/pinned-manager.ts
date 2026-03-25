@@ -299,12 +299,24 @@ export class DiscordPinnedMessageManager {
 
       logger.debug(`[DiscordPinnedManager] Updated pinned embed: ${this.state.messageRef}`);
     } catch (err: unknown) {
-      // Handle "message not found" — recreate
-      if (err instanceof Error && err.message.includes("message not found")) {
+      // Handle "Unknown Message" (Discord API error 10008) or "message not found" — recreate
+      const isMessageGone =
+        (err instanceof Error && err.message.includes("Unknown Message")) ||
+        (err instanceof Error && err.message.includes("message not found")) ||
+        (typeof err === "object" &&
+          err !== null &&
+          "code" in err &&
+          (err as { code: unknown }).code === 10008);
+
+      if (isMessageGone) {
         logger.warn("[DiscordPinnedManager] Pinned message was deleted, recreating...");
         this.state.messageRef = null;
         clearPinnedMessageId();
-        await this.createPinnedEmbed();
+        try {
+          await this.createPinnedEmbed();
+        } catch (recreateErr) {
+          logger.warn("[DiscordPinnedManager] Failed to recreate pinned embed:", recreateErr);
+        }
         return;
       }
 

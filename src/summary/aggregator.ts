@@ -125,12 +125,23 @@ function countDiffChangesFromText(text: string): { additions: number; deletions:
   return { additions, deletions };
 }
 
+interface SessionBucket {
+  currentMessageParts: Map<string, string[]>;
+  pendingParts: Map<string, string[]>;
+  messages: Map<string, { role: string }>;
+  messageCount: number;
+  processedToolStates: Set<string>;
+  thinkingFiredForMessages: Set<string>;
+  partHashes: Map<string, Set<string>>;
+  lastActivity: number;
+}
+
+type IsSessionActiveCallback = (sessionId: string) => boolean;
+
 class SummaryAggregator {
-  private currentSessionId: string | null = null;
-  private currentMessageParts: Map<string, string[]> = new Map();
-  private pendingParts: Map<string, string[]> = new Map();
-  private messages: Map<string, { role: string }> = new Map();
-  private messageCount = 0;
+  private focusedSessionId: string | null = null;
+  private isSessionActiveCallback: IsSessionActiveCallback | null = null;
+  private sessionBuckets: Map<string, SessionBucket> = new Map();
   private lastUpdated = 0;
   private onCompleteCallback: MessageCompleteCallback | null = null;
   private onToolCallback: ToolCallback | null = null;
@@ -149,11 +160,8 @@ class SummaryAggregator {
   private onFileChangeCallback: FileChangeCallback | null = null;
   private onClearedCallback: ClearedCallback | null = null;
   private onSessionIdleCallback: SessionIdleCallback | null = null;
-  private processedToolStates: Set<string> = new Set();
-  private thinkingFiredForMessages: Set<string> = new Set();
   private typingIndicatorCallback: (() => Promise<void>) | null = null;
   private typingTimer: ReturnType<typeof setInterval> | null = null;
-  private partHashes: Map<string, Set<string>> = new Map();
 
   setTypingIndicator(callback: () => Promise<void>): void {
     this.typingIndicatorCallback = callback;
@@ -225,6 +233,45 @@ class SummaryAggregator {
 
   setOnSessionIdle(callback: SessionIdleCallback): void {
     this.onSessionIdleCallback = callback;
+  }
+
+  setIsSessionActiveCallback(callback: IsSessionActiveCallback): void {
+    this.isSessionActiveCallback = callback;
+  }
+
+  setFocusedSession(sessionId: string): void {
+    this.focusedSessionId = sessionId;
+  }
+
+  getFocusedSession(): string | null {
+    return this.focusedSessionId;
+  }
+
+  private isSessionActive(sessionId: string): boolean {
+    if (this.isSessionActiveCallback) {
+      return this.isSessionActiveCallback(sessionId);
+    }
+    // Default: only the focused session is active (backward compatible)
+    return sessionId === this.focusedSessionId;
+  }
+
+  private getBucket(sessionId: string): SessionBucket {
+    let bucket = this.sessionBuckets.get(sessionId);
+    if (!bucket) {
+      bucket = {
+        currentMessageParts: new Map(),
+        pendingParts: new Map(),
+        messages: new Map(),
+        messageCount: 0,
+        processedToolStates: new Set(),
+        thinkingFiredForMessages: new Set(),
+        partHashes: new Map(),
+        lastActivity: Date.now(),
+      };
+      this.sessionBuckets.set(sessionId, bucket);
+    }
+    bucket.lastActivity = Date.now();
+    return bucket;
   }
 
   private startTypingIndicator(): void {
@@ -333,22 +380,16 @@ class SummaryAggregator {
   }
 
   setSession(sessionId: string): void {
-    if (this.currentSessionId !== sessionId) {
+    if (this.focusedSessionId !== sessionId) {
       this.clear();
-      this.currentSessionId = sessionId;
+      this.focusedSessionId = sessionId;
     }
   }
 
   clear(): void {
     this.stopTypingIndicator();
-    this.currentSessionId = null;
-    this.currentMessageParts.clear();
-    this.pendingParts.clear();
-    this.messages.clear();
-    this.partHashes.clear();
-    this.processedToolStates.clear();
-    this.thinkingFiredForMessages.clear();
-    this.messageCount = 0;
+    this.focusedSessionId = null;
+    this.sessionBuckets.clear();
     this.lastUpdated = 0;
 
     // Reset the deduplication tracker so the next session starts fresh.
@@ -371,41 +412,42 @@ class SummaryAggregator {
     const { info } = event.properties;
 
     logger.debug(
-      `[Aggregator] message.updated: role=${info.role}, sessionID=${info.sessionID}, currentSession=${this.currentSessionId}`,
+      `[Aggregator] message.updated: role=${info.role}, sessionID=${info.sessionID}, currentSession=${this.focusedSessionId}`,
     );
 
-    if (info.sessionID !== this.currentSessionId) {
+    if (info.sessionID !== this.focusedSessionId) {
       logger.debug(
-        `[Aggregator] Skipping message.updated — session mismatch (event=${info.sessionID}, current=${this.currentSessionId})`,
+        `[Aggregator] Skipping message.updated — session mismatch (event=${info.sessionID}, current=${this.focusedSessionId})`,
       );
       return;
     }
 
     const messageID = info.id;
+    const bucket = this.getBucket(info.sessionID);
 
-    this.messages.set(messageID, { role: info.role });
+    bucket.messages.set(messageID, { role: info.role });
 
     if (info.role === "assistant") {
-      if (!this.currentMessageParts.has(messageID)) {
-        this.currentMessageParts.set(messageID, []);
-        this.messageCount++;
+      if (!bucket.currentMessageParts.has(messageID)) {
+        bucket.currentMessageParts.set(messageID, []);
+        bucket.messageCount++;
         this.startTypingIndicator();
       }
 
-      const pending = this.pendingParts.get(messageID) || [];
-      const current = this.currentMessageParts.get(messageID) || [];
-      this.currentMessageParts.set(messageID, [...current, ...pending]);
-      this.pendingParts.delete(messageID);
+      const pending = bucket.pendingParts.get(messageID) || [];
+      const current = bucket.currentMessageParts.get(messageID) || [];
+      bucket.currentMessageParts.set(messageID, [...current, ...pending]);
+      bucket.pendingParts.delete(messageID);
 
       const assistantMessage = info as { time?: { created: number; completed?: number } };
       const time = assistantMessage.time;
 
       if (time?.completed) {
-        const parts = this.currentMessageParts.get(messageID) || [];
+        const parts = bucket.currentMessageParts.get(messageID) || [];
         const lastPart = parts[parts.length - 1] || "";
 
         logger.debug(
-          `[Aggregator] Message part completed: messageId=${messageID}, textLength=${lastPart.length}, totalParts=${parts.length}, session=${this.currentSessionId}`,
+          `[Aggregator] Message part completed: messageId=${messageID}, textLength=${lastPart.length}, totalParts=${parts.length}, session=${this.focusedSessionId}`,
         );
 
         // Extract and report tokens BEFORE onComplete so keyboard context is updated
@@ -436,18 +478,18 @@ class SummaryAggregator {
         if (this.onCompleteCallback && lastPart.length > 0) {
           // Mark as processed BEFORE the callback so the message poller skips it.
           markMessageProcessed(messageID);
-          this.onCompleteCallback(this.currentSessionId!, lastPart);
+          this.onCompleteCallback(info.sessionID, lastPart);
         }
 
-        this.currentMessageParts.delete(messageID);
-        this.messages.delete(messageID);
-        this.partHashes.delete(messageID);
+        bucket.currentMessageParts.delete(messageID);
+        bucket.messages.delete(messageID);
+        bucket.partHashes.delete(messageID);
 
         logger.debug(
-          `[Aggregator] Message completed cleanup: remaining messages=${this.currentMessageParts.size}`,
+          `[Aggregator] Message completed cleanup: remaining messages=${bucket.currentMessageParts.size}`,
         );
 
-        if (this.currentMessageParts.size === 0) {
+        if (bucket.currentMessageParts.size === 0) {
           logger.debug("[Aggregator] No more active messages, stopping typing indicator");
           this.stopTypingIndicator();
         }
@@ -465,21 +507,22 @@ class SummaryAggregator {
     const { part } = event.properties;
 
     logger.debug(
-      `[Aggregator] message.part.updated: type=${part.type}, sessionID=${part.sessionID}, currentSession=${this.currentSessionId}`,
+      `[Aggregator] message.part.updated: type=${part.type}, sessionID=${part.sessionID}, currentSession=${this.focusedSessionId}`,
     );
 
-    if (part.sessionID !== this.currentSessionId) {
+    if (part.sessionID !== this.focusedSessionId) {
       return;
     }
 
     const messageID = part.messageID;
-    const messageInfo = this.messages.get(messageID);
+    const bucket = this.getBucket(part.sessionID);
+    const messageInfo = bucket.messages.get(messageID);
 
     if (part.type === "reasoning") {
       // Fire the thinking callback once per message on the first reasoning part.
       // This is the signal that the model is actually doing extended thinking.
-      if (!this.thinkingFiredForMessages.has(messageID) && this.onThinkingCallback) {
-        this.thinkingFiredForMessages.add(messageID);
+      if (!bucket.thinkingFiredForMessages.has(messageID) && this.onThinkingCallback) {
+        bucket.thinkingFiredForMessages.add(messageID);
         const callback = this.onThinkingCallback;
         const sessionID = part.sessionID;
         setImmediate(() => {
@@ -491,11 +534,11 @@ class SummaryAggregator {
     } else if (part.type === "text" && "text" in part && part.text) {
       const partHash = this.hashString(part.text);
 
-      if (!this.partHashes.has(messageID)) {
-        this.partHashes.set(messageID, new Set());
+      if (!bucket.partHashes.has(messageID)) {
+        bucket.partHashes.set(messageID, new Set());
       }
 
-      const hashes = this.partHashes.get(messageID)!;
+      const hashes = bucket.partHashes.get(messageID)!;
 
       if (hashes.has(partHash)) {
         return;
@@ -504,19 +547,19 @@ class SummaryAggregator {
       hashes.add(partHash);
 
       if (messageInfo && messageInfo.role === "assistant") {
-        if (!this.currentMessageParts.has(messageID)) {
-          this.currentMessageParts.set(messageID, []);
+        if (!bucket.currentMessageParts.has(messageID)) {
+          bucket.currentMessageParts.set(messageID, []);
           this.startTypingIndicator();
         }
 
-        const parts = this.currentMessageParts.get(messageID)!;
+        const parts = bucket.currentMessageParts.get(messageID)!;
         parts.push(part.text);
       } else {
-        if (!this.pendingParts.has(messageID)) {
-          this.pendingParts.set(messageID, []);
+        if (!bucket.pendingParts.has(messageID)) {
+          bucket.pendingParts.set(messageID, []);
         }
 
-        const pending = this.pendingParts.get(messageID)!;
+        const pending = bucket.pendingParts.get(messageID)!;
         pending.push(part.text);
       }
     } else if (part.type === "tool") {
@@ -556,9 +599,10 @@ class SummaryAggregator {
         );
 
         const completedKey = `completed-${part.callID}`;
+        const toolBucket = this.getBucket(part.sessionID);
 
-        if (!this.processedToolStates.has(completedKey)) {
-          this.processedToolStates.add(completedKey);
+        if (!toolBucket.processedToolStates.has(completedKey)) {
+          toolBucket.processedToolStates.add(completedKey);
 
           const preparedFileContext = this.prepareToolFileContext(
             part.tool,
@@ -611,7 +655,7 @@ class SummaryAggregator {
   private handleMessagePartDelta(event: MessagePartDeltaEvent): void {
     const { sessionID, messageID, field, delta } = event.properties;
 
-    if (sessionID !== this.currentSessionId) {
+    if (sessionID !== this.focusedSessionId) {
       return;
     }
 
@@ -619,14 +663,15 @@ class SummaryAggregator {
       return;
     }
 
-    const messageInfo = this.messages.get(messageID);
+    const deltaBucket = this.getBucket(sessionID);
+    const messageInfo = deltaBucket.messages.get(messageID);
     if (messageInfo && messageInfo.role === "assistant") {
-      if (!this.currentMessageParts.has(messageID)) {
-        this.currentMessageParts.set(messageID, []);
+      if (!deltaBucket.currentMessageParts.has(messageID)) {
+        deltaBucket.currentMessageParts.set(messageID, []);
         this.startTypingIndicator();
       }
 
-      const parts = this.currentMessageParts.get(messageID)!;
+      const parts = deltaBucket.currentMessageParts.get(messageID)!;
       if (parts.length === 0) {
         parts.push(delta);
       } else {
@@ -634,11 +679,11 @@ class SummaryAggregator {
         parts[lastPartIndex] = `${parts[lastPartIndex]}${delta}`;
       }
     } else {
-      if (!this.pendingParts.has(messageID)) {
-        this.pendingParts.set(messageID, []);
+      if (!deltaBucket.pendingParts.has(messageID)) {
+        deltaBucket.pendingParts.set(messageID, []);
       }
 
-      const pending = this.pendingParts.get(messageID)!;
+      const pending = deltaBucket.pendingParts.get(messageID)!;
       if (pending.length === 0) {
         pending.push(delta);
       } else {
@@ -782,7 +827,7 @@ class SummaryAggregator {
       };
     };
 
-    if (sessionID !== this.currentSessionId) {
+    if (sessionID !== this.focusedSessionId) {
       return;
     }
 
@@ -814,7 +859,7 @@ class SummaryAggregator {
   ): void {
     const { sessionID } = event.properties;
 
-    if (sessionID !== this.currentSessionId) {
+    if (sessionID !== this.focusedSessionId) {
       return;
     }
 
@@ -838,7 +883,7 @@ class SummaryAggregator {
     const properties = event.properties as { sessionID: string };
     const { sessionID } = properties;
 
-    if (sessionID !== this.currentSessionId) {
+    if (sessionID !== this.focusedSessionId) {
       return;
     }
 
@@ -869,7 +914,7 @@ class SummaryAggregator {
       };
     };
 
-    if (sessionID !== this.currentSessionId) {
+    if (sessionID !== this.focusedSessionId) {
       return;
     }
 
@@ -894,9 +939,9 @@ class SummaryAggregator {
   ): void {
     const { id, sessionID, questions } = event.properties;
 
-    if (sessionID !== this.currentSessionId) {
+    if (sessionID !== this.focusedSessionId) {
       logger.info(
-        `[Aggregator] Question from different session: ${sessionID} (current: ${this.currentSessionId}), showing anyway for cross-client sync`,
+        `[Aggregator] Question from different session: ${sessionID} (current: ${this.focusedSessionId}), showing anyway for cross-client sync`,
       );
     }
 
@@ -920,7 +965,7 @@ class SummaryAggregator {
       diff: Array<{ file: string; additions: number; deletions: number }>;
     };
 
-    if (properties.sessionID !== this.currentSessionId) {
+    if (properties.sessionID !== this.focusedSessionId) {
       return;
     }
 
@@ -947,9 +992,9 @@ class SummaryAggregator {
   ): void {
     const request = event.properties;
 
-    if (request.sessionID !== this.currentSessionId) {
+    if (request.sessionID !== this.focusedSessionId) {
       logger.info(
-        `[Aggregator] Permission from different session: ${request.sessionID} (current: ${this.currentSessionId}), showing anyway for cross-client sync`,
+        `[Aggregator] Permission from different session: ${request.sessionID} (current: ${this.focusedSessionId}), showing anyway for cross-client sync`,
       );
     }
 

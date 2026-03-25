@@ -215,10 +215,10 @@ describe("message-poller", () => {
     expect(isPolling()).toBe(false);
   });
 
-  it("restarts when called with a different session", async () => {
+  it("can start polling a new session while keeping the old one", async () => {
     const mockMessages = vi.mocked(opencodeClient.session.messages);
 
-    // First session
+    // First session initial snapshot
     mockMessages.mockResolvedValueOnce({
       data: [],
       error: undefined,
@@ -228,9 +228,9 @@ describe("message-poller", () => {
 
     const callback1 = vi.fn();
     await startMessagePolling("ses-1", "/test", callback1);
-    expect(isPolling()).toBe(true);
+    expect(isPolling("ses-1")).toBe(true);
 
-    // Second session
+    // Second session initial snapshot
     mockMessages.mockResolvedValueOnce({
       data: [],
       error: undefined,
@@ -240,9 +240,19 @@ describe("message-poller", () => {
 
     const callback2 = vi.fn();
     await startMessagePolling("ses-2", "/test", callback2);
-    expect(isPolling()).toBe(true);
+    expect(isPolling("ses-1")).toBe(true);
+    expect(isPolling("ses-2")).toBe(true);
 
-    // Poll with new message for ses-2
+    // Poll: both sessions poll after 3s - mock responses for both
+    // First poll response is for ses-1 (no new messages)
+    mockMessages.mockResolvedValueOnce({
+      data: [],
+      error: undefined,
+      request: new Request("http://test"),
+      response: new Response(),
+    } as never);
+
+    // Second poll response is for ses-2 (has new message)
     mockMessages.mockResolvedValueOnce({
       data: [
         {
