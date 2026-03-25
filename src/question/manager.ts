@@ -251,7 +251,6 @@ class QuestionManager {
    */
   clear(sessionId?: string): void {
     if (sessionId !== undefined) {
-      const state = getState(this.states, sessionId);
       const cleared = createEmptyState();
       setState(this.states, sessionId, cleared);
       logger.debug(`[QuestionManager] Cleared question state for session ${sessionId}`);

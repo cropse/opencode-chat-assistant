@@ -8,7 +8,7 @@ import {
 } from "./middleware/auth.js";
 import { summaryAggregator } from "../../summary/aggregator.js";
 import { ToolMessageBatcher } from "../../summary/tool-message-batcher.js";
-import { formatSummaryWithConfig, formatToolInfo } from "../../summary/formatter.js";
+import { formatSummaryWithConfig } from "../../summary/formatter.js";
 import { DISCORD_FORMAT_CONFIG } from "./formatter.js";
 import { discordPinnedMessageManager } from "./pinned-manager.js";
 import { registerSlashCommands } from "./commands/register.js";
