@@ -68,6 +68,7 @@ describe("question external reply handling", () => {
     expect(onQuestion).toHaveBeenCalledWith(
       expect.arrayContaining([expect.objectContaining({ question: "Which color?" })]),
       REQUEST_ID,
+      "test-session-1",
     );
   });
 

@@ -709,14 +709,14 @@ export async function autoSubscribeEvents(bot: Bot<Context>): Promise<void> {
   }
 
   // Start question poller to discover questions from GUI that SSE might miss.
-  startQuestionPoller(currentProject.worktree, async (questions, requestID, _sessionId) => {
+  startQuestionPoller(currentProject.worktree, async (questions, requestID, sessionId) => {
     if (!botInstance || !chatIdInstance) return;
 
     // Skip if this question is already being shown
     if (questionManager.isActive() && questionManager.getRequestID() === requestID) return;
 
     logger.info(
-      `[Bot] Question discovered by poller: requestID=${requestID}, questions=${questions.length}`,
+      `[Bot] Question discovered by poller: requestID=${requestID}, session=${sessionId}, questions=${questions.length}`,
     );
 
     if (questionManager.isActive()) {
