@@ -102,5 +102,5 @@ class ActiveSessionManager {
 import { config } from "../config.js";
 
 export const activeSessionManager = new ActiveSessionManager(
-  config.bot.maxActiveSessions ?? DEFAULT_MAX_ACTIVE_SESSIONS,
+  config?.bot?.maxActiveSessions ?? DEFAULT_MAX_ACTIVE_SESSIONS,
 );

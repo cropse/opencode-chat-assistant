@@ -70,13 +70,16 @@ import {
 } from "./handlers/permission.js";
 import { questionManager } from "../../question/manager.js";
 
+import { activeSessionManager } from "../../session/active-session-manager.js";
+import { interactionManager } from "../../interaction/manager.js";
+
 let clientInstance: Client | null = null;
 let adapterInstance: DiscordAdapter | null = null;
-let typingInterval: ReturnType<typeof setInterval> | null = null;
+const typingIntervals = new Map<string, ReturnType<typeof setInterval>>();
 let eventSubscriptionAbortController: AbortController | null = null;
 let toolMessageBatcherInstance: ToolMessageBatcher | null = null;
-let lastPromptMessageRef: string | null = null;
-let lastPromptThreadId: string | null = null;
+/** Maps sessionId → { messageRef, threadId, authorId } for per-session reaction tracking */
+const promptTracker = new Map<string, { messageRef: string; threadId: string; authorId: string }>();
 let lastBotQuestionReplyID: string | null = null;
 let lastBotPermissionReplyID: string | null = null;
 let pollerDoneTimer: ReturnType<typeof setTimeout> | null = null;
@@ -119,28 +122,38 @@ export function markBotPermissionReply(requestID: string): void {
 /**
  * Start the typing indicator — sends typing every 8 seconds (Discord typing expires at 10s).
  */
-function startTypingIndicator(): void {
+function startTypingIndicator(sessionId: string): void {
   if (!adapterInstance) return;
-  stopTypingIndicator();
+  stopTypingIndicator(sessionId);
   adapterInstance.sendTyping().catch(() => {
     // Fire and forget
   });
-  typingInterval = setInterval(() => {
-    if (adapterInstance) {
-      adapterInstance.sendTyping().catch(() => {
-        // Fire and forget
-      });
-    }
-  }, 8000);
+  typingIntervals.set(
+    sessionId,
+    setInterval(() => {
+      if (adapterInstance) {
+        adapterInstance.sendTyping().catch(() => {
+          // Fire and forget
+        });
+      }
+    }, 8000),
+  );
 }
 
 /**
- * Stop the typing indicator.
+ * Stop the typing indicator for a session (or all sessions if no sessionId).
  */
-function stopTypingIndicator(): void {
-  if (typingInterval) {
-    clearInterval(typingInterval);
-    typingInterval = null;
+function stopTypingIndicator(sessionId?: string): void {
+  if (sessionId !== undefined) {
+    const interval = typingIntervals.get(sessionId);
+    if (interval) {
+      clearInterval(interval);
+      typingIntervals.delete(sessionId);
+    }
+  } else {
+    // Stop all
+    for (const [, interval] of typingIntervals) clearInterval(interval);
+    typingIntervals.clear();
   }
 }
 
@@ -150,15 +163,29 @@ function stopTypingIndicator(): void {
 function setupSummaryAggregatorCallbacks(): void {
   if (!adapterInstance) return;
 
+  // Register multi-session active callback — aggregator will route events for all active sessions
+  summaryAggregator.setIsSessionActiveCallback((sessionId) =>
+    activeSessionManager.isActive(sessionId),
+  );
+
+  // Register eviction cleanup
+  activeSessionManager.onEvict = (evictedSession) => {
+    interactionManager.clear("session_evicted", evictedSession.id);
+    questionManager.clear(evictedSession.id);
+    toolMessageBatcherInstance?.clearSession(evictedSession.id, "session_evicted");
+    stopMessagePolling(evictedSession.id);
+    stopTypingIndicator(evictedSession.id);
+    promptTracker.delete(evictedSession.id);
+    logger.info(`[Discord] Session evicted from active pool: ${evictedSession.id}`);
+  };
+
   toolMessageBatcherInstance = new ToolMessageBatcher({
     intervalSeconds: 5,
     messageMaxLength: DISCORD_FORMAT_CONFIG.messageMaxLength,
     sendText: async (sessionId, text) => {
-      const currentSession = getCurrentSession();
-      if (!currentSession || currentSession.id !== sessionId) return;
       if (!adapterInstance?.isReady()) return;
 
-      // Only send to Discord if this session has a bound thread
+      // Route to thread for this session — no currentSession guard needed
       const threadId = getDiscordThreadForSession(sessionId);
       if (!threadId) return;
       adapterInstance.setThreadId(threadId);
@@ -175,7 +202,7 @@ function setupSummaryAggregatorCallbacks(): void {
   });
 
   summaryAggregator.setOnComplete(async (sessionId, messageText) => {
-    stopTypingIndicator();
+    stopTypingIndicator(sessionId);
     if (!adapterInstance?.isReady()) return;
 
     // Only send to Discord if this session has a bound thread
@@ -192,9 +219,7 @@ function setupSummaryAggregatorCallbacks(): void {
   });
 
   summaryAggregator.setOnThinking(async (sessionId) => {
-    startTypingIndicator();
-    const currentSession = getCurrentSession();
-    if (!currentSession || currentSession.id !== sessionId) return;
+    startTypingIndicator(sessionId);
     if (!adapterInstance?.isReady()) return;
     const threadId = getDiscordThreadForSession(sessionId);
     if (!threadId) return;
@@ -204,89 +229,61 @@ function setupSummaryAggregatorCallbacks(): void {
   });
 
   summaryAggregator.setOnSessionError(async (sessionId, error) => {
-    stopTypingIndicator();
+    stopTypingIndicator(sessionId);
     if (!adapterInstance?.isReady()) return;
     const threadId = getDiscordThreadForSession(sessionId);
     if (!threadId) return;
     adapterInstance.setThreadId(threadId);
 
-    // Capture prompt author and thread before clearing
-    const promptAuthor = getSessionOwner();
-    const promptThreadId = lastPromptThreadId;
-    const mention = promptAuthor ? ` <@${promptAuthor}>` : "";
+    // Use per-session prompt tracker for reaction cleanup
+    const tracker = promptTracker.get(sessionId);
+    const mention = tracker ? ` <@${tracker.authorId}>` : "";
     await adapterInstance.sendMessage(t("bot.session_error", { message: error }) + mention);
     adapterInstance.clearThreadId();
-    clearSessionOwner();
 
-    // Remove ⏳ and 🛑 reactions from the user's prompt message
-    if (lastPromptMessageRef && adapterInstance) {
-      // Temporarily bind to the thread where the prompt was sent
-      const savedThread = adapterInstance.getThreadId();
-      if (promptThreadId) {
-        adapterInstance.setThreadId(promptThreadId);
-      }
-      await adapterInstance.removeReaction(lastPromptMessageRef, "⏳").catch(() => {});
-      await adapterInstance.removeReaction(lastPromptMessageRef, "🛑").catch(() => {});
-      // Restore previous thread binding
-      if (savedThread) {
-        adapterInstance.setThreadId(savedThread);
-      } else {
-        adapterInstance.clearThreadId();
-      }
-      lastPromptMessageRef = null;
-      lastPromptThreadId = null;
+    if (tracker && adapterInstance) {
+      adapterInstance.setThreadId(tracker.threadId);
+      await adapterInstance.removeReaction(tracker.messageRef, "⏳").catch(() => {});
+      await adapterInstance.removeReaction(tracker.messageRef, "🛑").catch(() => {});
+      adapterInstance.clearThreadId();
+      promptTracker.delete(sessionId);
     }
   });
 
   // Session idle = agent truly finished (all turns complete)
   // This is where we clean up reactions and unlock the session
   summaryAggregator.setOnSessionIdle(async (sessionId) => {
-    stopTypingIndicator();
+    stopTypingIndicator(sessionId);
 
-    // Capture prompt author and thread before clearing
-    const promptAuthor = getSessionOwner();
-    const promptThreadId = lastPromptThreadId;
+    // Use per-session prompt tracker
+    const tracker = promptTracker.get(sessionId);
+    if (!tracker) {
+      clearSessionOwner();
+      return;
+    }
+    promptTracker.delete(sessionId);
     clearSessionOwner();
 
     // Remove ⏳ and 🛑 reactions from the user's prompt message
-    if (lastPromptMessageRef && adapterInstance) {
-      // Temporarily bind to the thread where the prompt was sent
-      const savedThread = adapterInstance.getThreadId();
-      if (promptThreadId) {
-        adapterInstance.setThreadId(promptThreadId);
-      }
-      await adapterInstance.removeReaction(lastPromptMessageRef, "⏳").catch(() => {});
-      await adapterInstance.removeReaction(lastPromptMessageRef, "🛑").catch(() => {});
-      // Restore previous thread binding
-      if (savedThread) {
-        adapterInstance.setThreadId(savedThread);
-      } else {
-        adapterInstance.clearThreadId();
-      }
-      lastPromptMessageRef = null;
-      lastPromptThreadId = null;
+    if (adapterInstance) {
+      adapterInstance.setThreadId(tracker.threadId);
+      await adapterInstance.removeReaction(tracker.messageRef, "⏳").catch(() => {});
+      await adapterInstance.removeReaction(tracker.messageRef, "🛑").catch(() => {});
+      adapterInstance.clearThreadId();
     }
 
     // Ping the user who sent the prompt to notify them the task is done
-    logger.debug(
-      `[Discord] onSessionIdle ping check: promptAuthor=${promptAuthor}, adapterReady=${adapterInstance?.isReady()}, sessionId=${sessionId}, promptThreadId=${promptThreadId}`,
-    );
-    if (promptAuthor && adapterInstance?.isReady()) {
-      const threadId = getDiscordThreadForSession(sessionId) ?? promptThreadId;
-      logger.debug(
-        `[Discord] onSessionIdle ping: threadId=${threadId}, sessionThreadId=${getDiscordThreadForSession(sessionId)}, fallback=${promptThreadId}`,
-      );
-      if (threadId) {
-        adapterInstance.setThreadId(threadId);
-        await adapterInstance.sendMessage(`✅ Done <@${promptAuthor}>`).catch((err) => {
+    if (tracker && adapterInstance?.isReady()) {
+      const pingThreadId = getDiscordThreadForSession(sessionId) ?? tracker.threadId;
+      if (pingThreadId) {
+        adapterInstance.setThreadId(pingThreadId);
+        await adapterInstance.sendMessage(`✅ Done <@${tracker.authorId}>`).catch((err) => {
           logger.error("[Discord] Failed to send done ping:", err);
         });
         adapterInstance.clearThreadId();
       } else {
         logger.warn("[Discord] No thread found for done ping — skipping");
       }
-    } else {
-      logger.debug("[Discord] Skipped done ping: no promptAuthor or adapter not ready");
     }
   });
 
@@ -459,43 +456,33 @@ function startDiscordPollerForSession(sessionId: string, directory: string): voi
 
           logger.info("[MessagePoller] Session idle confirmed, cleaning up reactions and pinging");
 
-          const promptAuthor = getSessionOwner();
-          const promptThreadId = lastPromptThreadId;
+          const pollerTracker = promptTracker.get(polledSessionId);
           clearSessionOwner();
-          stopTypingIndicator();
+          stopTypingIndicator(polledSessionId);
 
           // Remove reactions
-          if (lastPromptMessageRef && adapterInstance) {
-            const savedThread = adapterInstance.getThreadId();
-            if (promptThreadId) {
-              adapterInstance.setThreadId(promptThreadId);
-            }
-            await adapterInstance.removeReaction(lastPromptMessageRef, "⏳").catch(() => {});
-            await adapterInstance.removeReaction(lastPromptMessageRef, "🛑").catch(() => {});
-            if (savedThread) {
-              adapterInstance.setThreadId(savedThread);
-            } else {
-              adapterInstance.clearThreadId();
-            }
-            lastPromptMessageRef = null;
-            lastPromptThreadId = null;
+          if (pollerTracker && adapterInstance) {
+            adapterInstance.setThreadId(pollerTracker.threadId);
+            await adapterInstance.removeReaction(pollerTracker.messageRef, "⏳").catch(() => {});
+            await adapterInstance.removeReaction(pollerTracker.messageRef, "🛑").catch(() => {});
+            adapterInstance.clearThreadId();
+            promptTracker.delete(polledSessionId);
           }
 
           // Send done ping
-          if (promptAuthor && adapterInstance?.isReady()) {
-            const doneThreadId = getDiscordThreadForSession(polledSessionId) ?? promptThreadId;
+          if (pollerTracker && adapterInstance?.isReady()) {
+            const doneThreadId =
+              getDiscordThreadForSession(polledSessionId) ?? pollerTracker.threadId;
             if (doneThreadId) {
               adapterInstance.setThreadId(doneThreadId);
-              await adapterInstance.sendMessage(`✅ Done <@${promptAuthor}>`);
+              await adapterInstance.sendMessage(`✅ Done <@${pollerTracker.authorId}>`);
               adapterInstance.clearThreadId();
-              logger.info(`[MessagePoller] Sent done ping to <@${promptAuthor}>`);
+              logger.info(`[MessagePoller] Sent done ping to <@${pollerTracker.authorId}>`);
             } else {
               logger.warn("[MessagePoller] No thread found for done ping");
             }
           } else {
-            logger.debug(
-              `[MessagePoller] Skipped done ping: promptAuthor=${promptAuthor}, adapterReady=${adapterInstance?.isReady()}`,
-            );
+            logger.debug("[MessagePoller] Skipped done ping: no tracker or adapter not ready");
           }
         },
         onError: (err) => {
@@ -590,6 +577,8 @@ async function sendPrompt(
   }
 
   await autoSubscribeDiscordEvents(clientInstance!);
+  // Activate session in active pool (LRU touch — does NOT clear other sessions)
+  activeSessionManager.activate(currentSession);
   summaryAggregator.setSession(currentSession.id);
 
   const sessionIsBusy = await isSessionBusy(currentSession.id, currentSession.directory);
@@ -683,9 +672,12 @@ export function createDiscordBot(): Client {
     }
 
     // Restore thread-session mapping from persisted settings
+    // Also re-activate sessions in activeSessionManager for multi-session support
     const savedThreadMap = getDiscordThreadMap();
     for (const [sessionId, threadId] of Object.entries(savedThreadMap)) {
-      threadSessionMap.set(threadId, { id: sessionId, title: "", directory: "" });
+      const sessionInfo = { id: sessionId, title: "", directory: "" };
+      threadSessionMap.set(threadId, sessionInfo);
+      activeSessionManager.activate(sessionInfo);
       logger.debug(`[Discord] Restored thread mapping: session=${sessionId} → thread=${threadId}`);
     }
 
@@ -856,15 +848,11 @@ export function createDiscordBot(): Client {
         return;
       }
 
-      // Switch to this thread's session if it differs from current
-      const currentSession = getCurrentSession();
-      if (!currentSession || currentSession.id !== threadSession.id) {
-        setCurrentSession(threadSession);
-        summaryAggregator.clear();
-        summaryAggregator.setSession(threadSession.id);
-        clearAllInteractionState("thread_session_switch");
-        await autoSubscribeDiscordEvents(clientInstance!);
-      }
+      // Activate this thread's session (add/touch in active pool — do NOT clear other sessions)
+      setCurrentSession(threadSession);
+      activeSessionManager.activate(threadSession);
+      summaryAggregator.setSession(threadSession.id);
+      await autoSubscribeDiscordEvents(clientInstance!);
 
       adapter.setChatId(message.channelId);
       adapter.setThreadId(message.channelId);
@@ -931,8 +919,15 @@ export function createDiscordBot(): Client {
     }
 
     // Add ⏳ + 🛑 reactions to indicate processing (🛑 can be clicked to abort)
-    lastPromptMessageRef = message.id;
-    lastPromptThreadId = adapterInstance?.getThreadId() ?? message.channelId;
+    // Track per-session for correct reaction cleanup and abort routing
+    const activeThreadSession = threadSessionMap.get(message.channelId);
+    if (activeThreadSession) {
+      promptTracker.set(activeThreadSession.id, {
+        messageRef: message.id,
+        threadId: message.channelId,
+        authorId: message.author.id,
+      });
+    }
     try {
       await message.react("⏳");
       await message.react("🛑");
@@ -961,37 +956,54 @@ export function createDiscordBot(): Client {
   client.on(Events.MessageReactionAdd, async (reaction, user) => {
     // Ignore bot reactions
     if (user.bot) return;
-    // Only care about 🛑 on the currently-processing message
+    // Only care about 🛑
     if (reaction.emoji.name !== "🛑") return;
-    if (!lastPromptMessageRef || reaction.message.id !== lastPromptMessageRef) return;
+
+    // Find which session owns this message via promptTracker
+    let targetSessionId: string | null = null;
+    let targetTracker: { messageRef: string; threadId: string; authorId: string } | null = null;
+    for (const [sid, tracker] of promptTracker) {
+      if (tracker.messageRef === reaction.message.id) {
+        targetSessionId = sid;
+        targetTracker = tracker;
+        break;
+      }
+    }
+    if (!targetSessionId || !targetTracker) return;
 
     // Auth check — only the session owner or authorized users can abort via reaction
     const currentOwner = getSessionOwner();
     if (currentOwner && currentOwner !== user.id) return;
 
-    logger.info(`[Discord] Abort triggered via 🛑 reaction by user ${user.id}`);
+    logger.info(
+      `[Discord] Abort triggered via 🛑 reaction by user ${user.id} for session ${targetSessionId}`,
+    );
 
-    const currentSession = getCurrentSession();
-    if (!currentSession) return;
+    // Find the full session info
+    const abortSession =
+      activeSessionManager.getActiveSessions().find((s) => s.id === targetSessionId) ??
+      getCurrentSession();
+    if (!abortSession || abortSession.id !== targetSessionId) return;
 
     try {
-      stopEventListening();
       summaryAggregator.clear();
-      clearAllInteractionState("abort_reaction");
+      clearAllInteractionState("abort_reaction", targetSessionId);
       adapterInstance?.clearThreadId();
 
       await opencodeClient.session.abort({
-        sessionID: currentSession.id,
-        directory: currentSession.directory,
+        sessionID: abortSession.id,
+        directory: abortSession.directory,
       });
 
       // Clean up both reactions
       if (adapterInstance) {
-        await adapterInstance.removeReaction(lastPromptMessageRef, "⏳").catch(() => {});
-        await adapterInstance.removeReaction(lastPromptMessageRef, "🛑").catch(() => {});
+        adapterInstance.setThreadId(targetTracker.threadId);
+        await adapterInstance.removeReaction(targetTracker.messageRef, "⏳").catch(() => {});
+        await adapterInstance.removeReaction(targetTracker.messageRef, "🛑").catch(() => {});
+        adapterInstance.clearThreadId();
       }
-      lastPromptMessageRef = null;
-      lastPromptThreadId = null;
+      promptTracker.delete(targetSessionId);
+      stopTypingIndicator(targetSessionId);
       clearSessionOwner();
 
       await adapterInstance?.sendMessage(t("stop.success"));
