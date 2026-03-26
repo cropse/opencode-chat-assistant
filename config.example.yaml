@@ -1,23 +1,19 @@
-# OpenCode Telegram/Discord Bot Configuration
+# OpenCode Chat Assistant Configuration
 # Copy this file to config.yaml and fill in your values.
 # Values with colons (like bot tokens) must be quoted.
 
-# Platform: "telegram" (default) or "discord"
-platform: telegram
-
-# Telegram settings (required when platform: telegram)
-telegram:
-  # Bot token from @BotFather (e.g., "123456:ABCdef...")
+# Discord platform settings (required)
+discord:
+  # Bot token from Discord Developer Portal (https://discord.com/developers/applications)
   token: ""
-  # Your numeric Telegram user ID (from @userinfobot)
-  allowedUserId: 0
-  # Proxy URL for Telegram API (optional)
-  # Supports socks5://, socks4://, http://, https:// protocols
-  # Examples:
-  #   proxyUrl: "socks5://proxy.example.com:1080"
-  #   proxyUrl: "socks5://user:password@proxy.example.com:1080"
-  #   proxyUrl: "http://proxy.example.com:8080"
-  # proxyUrl: ""
+  # Server ID where slash commands will be registered
+  serverId: ""
+  # Role IDs that can use the bot (list or comma-separated string)
+  # allowedRoleIds:
+  #   - ""
+  # User IDs that can DM the bot directly (list or comma-separated string)
+  # allowedUserIds:
+  #   - 0
 
 # OpenCode server connection (optional)
 # opencode:
@@ -43,7 +39,7 @@ telegram:
 #   # Max concurrent active sessions (1-50, default: 10)
 #   maxActiveSessions: 10
 #   # Service message batching interval in seconds (thinking + tool calls)
-#   # Recommended: keep >=2 to reduce risk of hitting Telegram rate limits
+#   # Recommended: keep >=2 to reduce risk of hitting rate limits
 #   # 0 = send immediately (can hit rate limits with many tool calls)
 #   serviceMessagesIntervalSec: 5
 #   # Hide thinking indicator messages
@@ -57,26 +53,3 @@ telegram:
 # files:
 #   # Maximum file size in KB to send as document
 #   maxFileSizeKb: 100
-
-# Speech-to-Text / Voice Recognition (optional)
-# Enable voice message transcription by setting a Whisper-compatible API URL.
-# Works with OpenAI, Groq, or any Whisper-compatible endpoint.
-# stt:
-#   apiUrl: ""
-#   apiKey: ""
-#   model: "whisper-large-v3-turbo"
-#   language: ""
-
-# Discord platform settings (required when platform: discord)
-# Change platform: above to "discord" and uncomment these values.
-# discord:
-#   # Bot token from Discord Developer Portal (https://discord.com/developers/applications)
-#   token: ""
-#   # Server ID where slash commands will be registered
-#   serverId: ""
-#   # Role IDs that can use the bot (list or comma-separated string)
-#   allowedRoleIds:
-#     - ""
-#   # User IDs that can DM the bot directly (list or comma-separated string)
-#   # allowedUserIds:
-#   #   - 0
