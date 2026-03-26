@@ -1,9 +1,9 @@
-// Platform-agnostic message reference (Telegram uses number internally, stored as string)
+// Platform-agnostic message reference stored as string
 export type PlatformMessageRef = string;
 
 // Platform identifier + capability info
 export type PlatformInfo = {
-  platform: "telegram" | "discord";
+  platform: "discord";
   messageMaxLength: number;
   documentCaptionMaxLength: number;
 };
@@ -48,7 +48,7 @@ export interface PlatformAdapter {
 
   // Send a document/file to the bound chat
   sendDocument(
-    file: unknown, // Platform-specific file type (InputFile for Telegram, Buffer for Discord)
+    file: unknown, // Platform-specific file type (e.g. Buffer)
     options?: PlatformDocumentOptions,
   ): Promise<PlatformMessageRef>;
 
