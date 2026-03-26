@@ -268,15 +268,21 @@ export const zh: I18nDictionary = {
   "tool.file_header.edit":
     "编辑文件/路径: {path}\n============================================================\n\n",
 
-  "runtime.wizard.ask_token": "请输入 Telegram 机器人 token（从 @BotFather 获取）。\n> ",
+  "runtime.wizard.ask_discord_token":
+    "请输入 Discord 机器人 token（从 Discord 开发者门户获取）。\n> ",
+  "runtime.wizard.ask_discord_server_id":
+    "请输入 Discord 服务器 ID（右键点击服务器 → 复制服务器 ID）。\n> ",
+  "runtime.wizard.ask_discord_role_ids":
+    "请输入允许的角色 ID（逗号分隔，可选 - 按 Enter 跳过）。\n> ",
+  "runtime.wizard.ask_discord_user_ids":
+    "请输入允许的 DM 用户 ID（逗号分隔，可选 - 按 Enter 跳过）。\n> ",
+  "runtime.wizard.discord_token_required": "Discord 机器人 token 是必需的。\n",
+  "runtime.wizard.discord_server_id_required": "Discord 服务器 ID 是必需的。\n",
+  "runtime.wizard.discord_server_id_invalid": "无效的服务器 ID。必须是数字字符串。\n",
   "runtime.wizard.ask_language":
     "请选择界面语言。\n输入列表中的语言编号或 locale code。\n按 Enter 保持默认语言：{defaultLocale}\n{options}\n> ",
   "runtime.wizard.language_invalid": "请输入列表中的语言编号或受支持的 locale code。\n",
   "runtime.wizard.language_selected": "已选择语言：{language}\n",
-  "runtime.wizard.token_required": "必须提供 token。请重试。\n",
-  "runtime.wizard.token_invalid": "token 看起来无效（期望格式 <id>:<secret>）。请重试。\n",
-  "runtime.wizard.ask_user_id": "请输入你的 Telegram User ID（可从 @userinfobot 获取）。\n> ",
-  "runtime.wizard.user_id_invalid": "请输入一个正整数（> 0）。\n",
   "runtime.wizard.ask_api_url":
     "请输入 OpenCode API URL（可选）。\n按 Enter 使用默认值：{defaultUrl}\n> ",
   "runtime.wizard.ask_server_username":
@@ -284,11 +290,11 @@ export const zh: I18nDictionary = {
   "runtime.wizard.ask_server_password":
     "请输入 OpenCode 服务器密码（可选）。\n按 Enter 保持为空。\n> ",
   "runtime.wizard.api_url_invalid": "请输入有效 URL（http/https），或按 Enter 使用默认值。\n",
-  "runtime.wizard.start": "OpenCode Telegram Bot 设置。\n",
+  "runtime.wizard.start": "OpenCode Chat Assistant 设置。\n",
   "runtime.wizard.saved": "配置已保存：\n- {configPath}\n- {settingsPath}\n",
   "runtime.wizard.not_configured_starting": "应用尚未配置。正在启动向导...\n",
   "runtime.wizard.tty_required":
-    "交互式向导需要 TTY 终端。请在交互式 shell 中运行 `opencode-telegram config`。",
+    "交互式向导需要 TTY 终端。请在交互式 shell 中运行 `opencode-chat config`。",
 
   "rename.no_session": "⚠️ 没有活动会话。请先创建或选择一个会话。",
   "rename.prompt": "📝 请输入会话的新标题：\n\n当前：{title}",

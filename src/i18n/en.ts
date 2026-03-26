@@ -294,18 +294,22 @@ export const en = {
   "tool.file_header.edit":
     "Edit File/Path: {path}\n============================================================\n\n",
 
-  "runtime.wizard.ask_token": "Enter Telegram bot token (get it from @BotFather).\n> ",
+  "runtime.wizard.ask_discord_token":
+    "Enter Discord bot token (from Discord Developer Portal).\n> ",
+  "runtime.wizard.ask_discord_server_id":
+    "Enter Discord server ID (right-click server → Copy Server ID).\n> ",
+  "runtime.wizard.ask_discord_role_ids":
+    "Enter allowed role IDs (comma-separated, optional - press Enter to skip).\n> ",
+  "runtime.wizard.ask_discord_user_ids":
+    "Enter allowed user IDs for DMs (comma-separated, optional - press Enter to skip).\n> ",
+  "runtime.wizard.discord_token_required": "Discord bot token is required.\n",
+  "runtime.wizard.discord_server_id_required": "Discord server ID is required.\n",
+  "runtime.wizard.discord_server_id_invalid": "Invalid server ID. Must be a numeric string.\n",
   "runtime.wizard.ask_language":
     "Select interface language.\nEnter the language number from the list or locale code.\nPress Enter to keep default language: {defaultLocale}\n{options}\n> ",
   "runtime.wizard.language_invalid":
     "Enter a language number from the list or a supported locale code.\n",
   "runtime.wizard.language_selected": "Selected language: {language}\n",
-  "runtime.wizard.token_required": "Token is required. Please try again.\n",
-  "runtime.wizard.token_invalid":
-    "Token looks invalid (expected format <id>:<secret>). Please try again.\n",
-  "runtime.wizard.ask_user_id":
-    "Enter your Telegram User ID (you can get it from @userinfobot).\n> ",
-  "runtime.wizard.user_id_invalid": "Enter a positive integer (> 0).\n",
   "runtime.wizard.ask_api_url":
     "Enter OpenCode API URL (optional).\nPress Enter to use default: {defaultUrl}\n> ",
   "runtime.wizard.ask_server_username":
@@ -313,12 +317,12 @@ export const en = {
   "runtime.wizard.ask_server_password":
     "Enter OpenCode server password (optional).\nPress Enter to keep it empty.\n> ",
   "runtime.wizard.api_url_invalid": "Enter a valid URL (http/https) or press Enter for default.\n",
-  "runtime.wizard.start": "OpenCode Telegram Bot setup.\n",
+  "runtime.wizard.start": "OpenCode Chat Assistant setup.\n",
   "runtime.wizard.saved": "Configuration saved:\n- {configPath}\n- {settingsPath}\n",
   "runtime.wizard.not_configured_starting":
     "Application is not configured yet. Starting wizard...\n",
   "runtime.wizard.tty_required":
-    "Interactive wizard requires a TTY terminal. Run `opencode-telegram config` in an interactive shell.",
+    "Interactive wizard requires a TTY terminal. Run `opencode-chat config` in an interactive shell.",
 
   "rename.no_session": "⚠️ No active session. Create or select a session first.",
   "rename.prompt": "📝 Enter new title for session:\n\nCurrent: {title}",

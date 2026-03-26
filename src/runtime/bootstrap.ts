@@ -23,17 +23,21 @@ interface EnvValidationResult {
 
 interface WizardCollectedValues {
   locale: Locale;
-  token: string;
-  allowedUserId: string;
+  discordToken: string;
+  discordServerId: string;
+  discordAllowedRoleIds?: string[];
+  discordAllowedUserIds?: number[];
   apiUrl?: string;
   serverUsername: string;
   serverPassword?: string;
 }
 
 export interface WizardConfigValues {
-  telegram: {
+  discord: {
     token: string;
-    allowedUserId: string;
+    serverId: string;
+    allowedRoleIds?: string[];
+    allowedUserIds?: number[];
   };
   opencode?: {
     apiUrl?: string;
@@ -43,10 +47,6 @@ export interface WizardConfigValues {
   bot?: {
     locale: Locale;
   };
-}
-
-function isPositiveInteger(value: string): boolean {
-  return /^[1-9]\d*$/.test(value);
 }
 
 function isValidHttpUrl(value: string): boolean {
@@ -59,34 +59,13 @@ function isValidHttpUrl(value: string): boolean {
 }
 
 export function validateRuntimeConfigValues(values: Record<string, unknown>): EnvValidationResult {
-  const platform = values?.platform ? String(values.platform).trim().toLowerCase() : "telegram";
-
-  if (platform === "discord") {
-    // Discord mode: validate discord config instead of telegram
-    const discord = values?.discord as Record<string, unknown> | undefined;
-    if (!discord?.token || String(discord.token).trim().length === 0) {
-      return { isValid: false, reason: "Missing discord.token" };
-    }
-  } else {
-    // Telegram mode: validate telegram config
-    const telegram = values?.telegram as Record<string, unknown> | undefined;
-
-    if (!telegram?.token || String(telegram.token).trim().length === 0) {
-      return { isValid: false, reason: "Missing telegram.token" };
-    }
-
-    const userId = telegram?.allowedUserId;
-    if (userId === undefined || userId === null) {
-      return { isValid: false, reason: "Missing telegram.allowedUserId" };
-    }
-    // Accept both number and string
-    if (typeof userId === "number") {
-      if (!Number.isInteger(userId) || userId <= 0) {
-        return { isValid: false, reason: "Invalid telegram.allowedUserId" };
-      }
-    } else if (!isPositiveInteger(String(userId))) {
-      return { isValid: false, reason: "Invalid telegram.allowedUserId" };
-    }
+  // Discord validation (now the only platform)
+  const discord = values?.discord as Record<string, unknown> | undefined;
+  if (!discord?.token || String(discord.token).trim().length === 0) {
+    return { isValid: false, reason: "Missing discord.token" };
+  }
+  if (!discord?.serverId || String(discord.serverId).trim().length === 0) {
+    return { isValid: false, reason: "Missing discord.serverId" };
   }
 
   const opencode = values?.opencode as Record<string, unknown> | undefined;
@@ -102,11 +81,18 @@ export function buildConfigYamlContent(values: WizardConfigValues): string {
   // Build a clean config object (only include non-empty values)
   const configObj: Record<string, unknown> = {};
 
-  // telegram section (always present)
-  configObj.telegram = {
-    token: values.telegram.token,
-    allowedUserId: parseInt(values.telegram.allowedUserId, 10),
+  // discord section (always present)
+  const discord: Record<string, unknown> = {
+    token: values.discord.token,
+    serverId: values.discord.serverId,
   };
+  if (values.discord.allowedRoleIds && values.discord.allowedRoleIds.length > 0) {
+    discord.allowedRoleIds = values.discord.allowedRoleIds;
+  }
+  if (values.discord.allowedUserIds && values.discord.allowedUserIds.length > 0) {
+    discord.allowedUserIds = values.discord.allowedUserIds;
+  }
+  configObj.discord = discord;
 
   // opencode section
   const opencode: Record<string, unknown> = {};
@@ -215,22 +201,74 @@ async function askHidden(question: string): Promise<string> {
   });
 }
 
-async function askToken(): Promise<string> {
+async function askDiscordToken(): Promise<string> {
   for (;;) {
-    const token = await askHidden(t("runtime.wizard.ask_token"));
+    const token = await askHidden(t("runtime.wizard.ask_discord_token"));
 
     if (!token) {
-      process.stdout.write(t("runtime.wizard.token_required"));
-      continue;
-    }
-
-    if (!token.includes(":")) {
-      process.stdout.write(t("runtime.wizard.token_invalid"));
+      process.stdout.write(t("runtime.wizard.discord_token_required"));
       continue;
     }
 
     return token;
   }
+}
+
+async function askDiscordServerId(): Promise<string> {
+  for (;;) {
+    const serverId = await askVisible(t("runtime.wizard.ask_discord_server_id"));
+
+    if (!serverId) {
+      process.stdout.write(t("runtime.wizard.discord_server_id_required"));
+      continue;
+    }
+
+    // Server ID should be a numeric string (Discord snowflake)
+    if (!/^\d+$/.test(serverId)) {
+      process.stdout.write(t("runtime.wizard.discord_server_id_invalid"));
+      continue;
+    }
+
+    return serverId;
+  }
+}
+
+async function askDiscordAllowedRoleIds(): Promise<string[] | undefined> {
+  const input = await askVisible(t("runtime.wizard.ask_discord_role_ids"));
+
+  if (!input) {
+    return undefined;
+  }
+
+  // Parse comma-separated role IDs
+  const roleIds = input
+    .split(",")
+    .map((id) => id.trim())
+    .filter((id) => id.length > 0);
+
+  return roleIds.length > 0 ? roleIds : undefined;
+}
+
+async function askDiscordAllowedUserIds(): Promise<number[] | undefined> {
+  const input = await askVisible(t("runtime.wizard.ask_discord_user_ids"));
+
+  if (!input) {
+    return undefined;
+  }
+
+  // Parse comma-separated user IDs (must be valid numbers)
+  const userIds: number[] = [];
+  const parts = input.split(",").map((id) => id.trim());
+
+  for (const part of parts) {
+    if (!part) continue;
+    // User IDs are Discord snowflakes - large numeric strings
+    if (/^\d+$/.test(part)) {
+      userIds.push(Number(part));
+    }
+  }
+
+  return userIds.length > 0 ? userIds : undefined;
 }
 
 async function askLocale(): Promise<Locale> {
@@ -267,19 +305,6 @@ async function askLocale(): Promise<Locale> {
     }
 
     process.stdout.write(t("runtime.wizard.language_invalid"));
-  }
-}
-
-async function askAllowedUserId(): Promise<string> {
-  for (;;) {
-    const allowedUserId = await askVisible(t("runtime.wizard.ask_user_id"));
-
-    if (!isPositiveInteger(allowedUserId)) {
-      process.stdout.write(t("runtime.wizard.user_id_invalid"));
-      continue;
-    }
-
-    return allowedUserId;
   }
 }
 
@@ -343,8 +368,10 @@ async function collectWizardValues(): Promise<WizardCollectedValues> {
   process.stdout.write(t("runtime.wizard.start"));
   process.stdout.write("\n");
 
-  const token = await askToken();
-  const allowedUserId = await askAllowedUserId();
+  const discordToken = await askDiscordToken();
+  const discordServerId = await askDiscordServerId();
+  const discordAllowedRoleIds = await askDiscordAllowedRoleIds();
+  const discordAllowedUserIds = await askDiscordAllowedUserIds();
   const apiUrl = await askApiUrl();
   const serverUsername = await askServerUsername();
   const serverPassword = await askServerPassword();
@@ -353,8 +380,10 @@ async function collectWizardValues(): Promise<WizardCollectedValues> {
 
   return {
     locale,
-    token,
-    allowedUserId,
+    discordToken,
+    discordServerId,
+    discordAllowedRoleIds,
+    discordAllowedUserIds,
     apiUrl,
     serverUsername,
     serverPassword,
@@ -399,15 +428,25 @@ async function migrateEnvToYaml(envFilePath: string, configFilePath: string): Pr
   // Map flat env keys to nested YAML structure
   const configObj: Record<string, Record<string, unknown>> = {};
 
-  // telegram section
-  const telegram: Record<string, unknown> = {};
-  if (envValues.TELEGRAM_BOT_TOKEN) telegram.token = envValues.TELEGRAM_BOT_TOKEN;
-  if (envValues.TELEGRAM_ALLOWED_USER_ID) {
-    const parsed = parseInt(envValues.TELEGRAM_ALLOWED_USER_ID, 10);
-    telegram.allowedUserId = Number.isNaN(parsed) ? envValues.TELEGRAM_ALLOWED_USER_ID : parsed;
+  // discord section
+  const discord: Record<string, unknown> = {};
+  if (envValues.DISCORD_TOKEN) discord.token = envValues.DISCORD_TOKEN;
+  if (envValues.DISCORD_SERVER_ID) discord.serverId = envValues.DISCORD_SERVER_ID;
+  if (envValues.DISCORD_ALLOWED_ROLE_IDS) {
+    discord.allowedRoleIds = envValues.DISCORD_ALLOWED_ROLE_IDS.split(",")
+      .map((id) => id.trim())
+      .filter((id) => id.length > 0);
   }
-  if (envValues.TELEGRAM_PROXY_URL) telegram.proxyUrl = envValues.TELEGRAM_PROXY_URL;
-  if (Object.keys(telegram).length > 0) configObj.telegram = telegram;
+  if (envValues.DISCORD_ALLOWED_USER_IDS) {
+    const userIds = envValues.DISCORD_ALLOWED_USER_IDS.split(",")
+      .map((id) => {
+        const trimmed = id.trim();
+        return /^\d+$/.test(trimmed) ? Number(trimmed) : null;
+      })
+      .filter((id): id is number => id !== null);
+    if (userIds.length > 0) discord.allowedUserIds = userIds;
+  }
+  if (Object.keys(discord).length > 0) configObj.discord = discord;
 
   // opencode section
   const opencode: Record<string, unknown> = {};
@@ -448,14 +487,6 @@ async function migrateEnvToYaml(envFilePath: string, configFilePath: string): Pr
     files.maxFileSizeKb = parseInt(envValues.CODE_FILE_MAX_SIZE_KB, 10);
   if (Object.keys(files).length > 0) configObj.files = files;
 
-  // stt section
-  const stt: Record<string, unknown> = {};
-  if (envValues.STT_API_URL) stt.apiUrl = envValues.STT_API_URL;
-  if (envValues.STT_API_KEY) stt.apiKey = envValues.STT_API_KEY;
-  if (envValues.STT_MODEL) stt.model = envValues.STT_MODEL;
-  if (envValues.STT_LANGUAGE) stt.language = envValues.STT_LANGUAGE;
-  if (Object.keys(stt).length > 0) configObj.stt = stt;
-
   // Write config.yaml
   const yamlContent = stringifyYaml(configObj, { lineWidth: 0 });
   await writeFileAtomically(configFilePath, yamlContent);
@@ -485,9 +516,11 @@ async function runWizardAndPersist(runtimePaths: RuntimePaths): Promise<void> {
   const wizardValues = await collectWizardValues();
 
   const configValues: WizardConfigValues = {
-    telegram: {
-      token: wizardValues.token,
-      allowedUserId: wizardValues.allowedUserId,
+    discord: {
+      token: wizardValues.discordToken,
+      serverId: wizardValues.discordServerId,
+      allowedRoleIds: wizardValues.discordAllowedRoleIds,
+      allowedUserIds: wizardValues.discordAllowedUserIds,
     },
     opencode: {
       apiUrl: wizardValues.apiUrl,
@@ -518,9 +551,7 @@ export async function ensureRuntimeConfigForStart(): Promise<void> {
   const envFilePath = path.join(runtimePaths.appHome, ".env");
   const migrated = await migrateEnvToYaml(envFilePath, runtimePaths.configFilePath);
   if (migrated) {
-    // Use a simple console.log here since logger may not be initialized yet
-    // Actually, we can't use console.log due to eslint rules. Just proceed silently.
-    // The info will be logged at app startup.
+    // Migration completed silently
   }
 
   const validationResult = await validateExistingConfig(runtimePaths.configFilePath);

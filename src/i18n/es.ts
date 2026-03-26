@@ -304,18 +304,23 @@ export const es: I18nDictionary = {
   "tool.file_header.edit":
     "Editar archivo/ruta: {path}\n============================================================\n\n",
 
-  "runtime.wizard.ask_token": "Introduce el token del bot de Telegram (obtenlo de @BotFather).\n> ",
+  "runtime.wizard.ask_discord_token":
+    "Introduce el token del bot de Discord (del Portal de Desarrolladores de Discord).\n> ",
+  "runtime.wizard.ask_discord_server_id":
+    "Introduce el ID del servidor de Discord (clic derecho en el servidor → Copiar ID del servidor).\n> ",
+  "runtime.wizard.ask_discord_role_ids":
+    "Introduce los IDs de roles permitidos (separados por comas, opcional - Enter para saltar).\n> ",
+  "runtime.wizard.ask_discord_user_ids":
+    "Introduce los IDs de usuarios permitidos para DMs (separados por comas, opcional - Enter para saltar).\n> ",
+  "runtime.wizard.discord_token_required": "El token del bot de Discord es obligatorio.\n",
+  "runtime.wizard.discord_server_id_required": "El ID del servidor de Discord es obligatorio.\n",
+  "runtime.wizard.discord_server_id_invalid":
+    "ID de servidor inválido. Debe ser una cadena numérica.\n",
   "runtime.wizard.ask_language":
     "Selecciona el idioma de la interfaz.\nIntroduce el número del idioma de la lista o el código de locale.\nPulsa Enter para mantener el idioma por defecto: {defaultLocale}\n{options}\n> ",
   "runtime.wizard.language_invalid":
     "Introduce un número de idioma de la lista o un código de locale compatible.\n",
   "runtime.wizard.language_selected": "Idioma seleccionado: {language}\n",
-  "runtime.wizard.token_required": "El token es obligatorio. Inténtalo de nuevo.\n",
-  "runtime.wizard.token_invalid":
-    "El token parece inválido (se espera el formato <id>:<secret>). Inténtalo de nuevo.\n",
-  "runtime.wizard.ask_user_id":
-    "Introduce tu Telegram User ID (puedes obtenerlo de @userinfobot).\n> ",
-  "runtime.wizard.user_id_invalid": "Introduce un entero positivo (> 0).\n",
   "runtime.wizard.ask_api_url":
     "Introduce la URL de la API de OpenCode (opcional).\nPulsa Enter para usar el valor por defecto: {defaultUrl}\n> ",
   "runtime.wizard.ask_server_username":
@@ -324,12 +329,12 @@ export const es: I18nDictionary = {
     "Introduce la contrasena del servidor OpenCode (opcional).\nPulsa Enter para dejarla vacia.\n> ",
   "runtime.wizard.api_url_invalid":
     "Introduce una URL válida (http/https) o pulsa Enter para usar el valor por defecto.\n",
-  "runtime.wizard.start": "Configuración de OpenCode Telegram Bot.\n",
+  "runtime.wizard.start": "Configuración de OpenCode Chat Assistant.\n",
   "runtime.wizard.saved": "Configuración guardada:\n- {configPath}\n- {settingsPath}\n",
   "runtime.wizard.not_configured_starting":
     "La aplicación aún no está configurada. Iniciando el asistente...\n",
   "runtime.wizard.tty_required":
-    "El asistente interactivo requiere un terminal TTY. Ejecuta `opencode-telegram config` en una shell interactiva.",
+    "El asistente interactivo requiere un terminal TTY. Ejecuta `opencode-chat config` en una shell interactiva.",
 
   "rename.no_session": "⚠️ No hay una sesión activa. Crea o selecciona una sesión primero.",
   "rename.prompt": "📝 Introduce un nuevo título para la sesión:\n\nActual: {title}",
