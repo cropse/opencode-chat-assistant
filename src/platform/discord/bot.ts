@@ -300,6 +300,46 @@ function setupSummaryAggregatorCallbacks(): void {
     // Pinned message functionality removed
   });
 
+  summaryAggregator.setOnSessionUpdated(async (sessionId, newTitle) => {
+    if (!adapterInstance?.isReady()) return;
+
+    // Find the Discord thread bound to this session
+    const threadId = getDiscordThreadForSession(sessionId);
+    if (!threadId) return;
+
+    // Title comparison guard — skip if title is unchanged
+    const existingSession = threadSessionMap.get(threadId);
+    if (existingSession && existingSession.title === newTitle) {
+      logger.debug(`[Discord] session.updated: title unchanged for ${sessionId}, skipping rename`);
+      return;
+    }
+
+    // Update persistent session info (only if this is the currently selected session)
+    const currentSession = getCurrentSession();
+    if (currentSession && currentSession.id === sessionId) {
+      setCurrentSession({ id: sessionId, title: newTitle, directory: currentSession.directory });
+    }
+
+    // Update threadSessionMap
+    if (existingSession) {
+      threadSessionMap.set(threadId, { ...existingSession, title: newTitle });
+    }
+
+    // Update activeSessionManager pool
+    const poolSession = existingSession ?? {
+      id: sessionId,
+      title: newTitle,
+      directory: currentSession?.directory ?? "",
+    };
+    activeSessionManager.activate({ ...poolSession, title: newTitle });
+
+    // Rename the Discord thread
+    await adapterInstance.renameThread(threadId, newTitle);
+    logger.info(
+      `[Discord] Auto-renamed thread ${threadId} to "${newTitle}" for session ${sessionId}`,
+    );
+  });
+
   summaryAggregator.setOnCleared(() => {
     toolMessageBatcherInstance?.clearAll("summary_aggregator_clear");
     stopMessagePolling();
