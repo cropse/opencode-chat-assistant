@@ -629,7 +629,7 @@ class SummaryAggregator {
           };
 
           logger.debug(
-            `[Aggregator] Sending tool notification to Telegram: tool=${part.tool}, title=${title || "N/A"}`,
+            `[Aggregator] Sending tool notification: tool=${part.tool}, title=${title || "N/A"}`,
           );
 
           if (this.onToolCallback) {
