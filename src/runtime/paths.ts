@@ -11,7 +11,7 @@ export interface RuntimePaths {
   runDirPath: string;
 }
 
-const APP_DIR_NAME = "opencode-telegram-bot";
+const APP_DIR_NAME = "opencode-chat-assistant";
 
 function getInstalledAppHome(): string {
   if (process.platform === "win32") {
@@ -28,7 +28,7 @@ function getInstalledAppHome(): string {
 }
 
 function resolveAppHome(mode: RuntimeMode): string {
-  const homeOverride = process.env.OPENCODE_TELEGRAM_HOME;
+  const homeOverride = process.env.OPENCODE_CHAT_ASSISTANT_HOME;
   if (homeOverride && homeOverride.trim().length > 0) {
     return path.resolve(homeOverride);
   }

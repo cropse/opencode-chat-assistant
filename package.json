@@ -1,11 +1,11 @@
 {
-  "name": "@ih-chung/opencode-telegram-bot",
+  "name": "@ih-chung/opencode-chat-assistant",
   "version": "1.0.0",
   "description": "Telegram and Discord bot client for OpenCode to run and monitor coding tasks from chat.",
   "type": "module",
   "main": "./dist/index.js",
   "bin": {
-    "opencode-telegram": "dist/cli.js"
+    "opencode-chat": "dist/cli.js"
   },
   "exports": {
     ".": "./dist/index.js",
@@ -35,13 +35,11 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/IH-Chung/opencode-telegram-bot.git"
+    "url": "git+https://github.com/IH-Chung/opencode-chat-assistant.git"
   },
   "keywords": [
     "opencode",
-    "telegram",
-    "telegram-bot",
-    "grammy",
+    "chat-assistant",
     "discord",
     "discord-bot",
     "developer-tools",
@@ -50,9 +48,9 @@
   "author": "IH-Chung",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/IH-Chung/opencode-telegram-bot/issues"
+    "url": "https://github.com/IH-Chung/opencode-chat-assistant/issues"
   },
-  "homepage": "https://github.com/IH-Chung/opencode-telegram-bot#readme",
+  "homepage": "https://github.com/IH-Chung/opencode-chat-assistant#readme",
   "dependencies": {
     "@opencode-ai/sdk": "^1.1.21",
     "better-sqlite3": "^12.6.2",

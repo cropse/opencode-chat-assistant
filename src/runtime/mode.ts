@@ -1,6 +1,6 @@
 export type RuntimeMode = "sources" | "installed";
 
-const RUNTIME_MODE_ENV_KEY = "OPENCODE_TELEGRAM_RUNTIME_MODE";
+const RUNTIME_MODE_ENV_KEY = "OPENCODE_CHAT_ASSISTANT_RUNTIME_MODE";
 
 interface ResolveRuntimeModeOptions {
   defaultMode: RuntimeMode;
