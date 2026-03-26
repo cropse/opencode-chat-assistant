@@ -46,7 +46,7 @@ export const en = {
   "common.unknown_error": "unknown error",
 
   "start.welcome":
-    "👋 Welcome to OpenCode Telegram Bot!\n\nUse commands:\n/projects — select project\n/sessions — session list\n/new — new session\n/status — status\n/help — help\n\nUse the bottom buttons to select agent mode, model, and variant.",
+    "👋 Welcome to OpenCode Chat Assistant!\n\nUse commands:\n/projects — select project\n/sessions — session list\n/new — new session\n/status — status\n/help — help\n\nUse the bottom buttons to select agent mode, model, and variant.",
   "help.keyboard_hint":
     "💡 Use the bottom keyboard buttons for agent mode, model, variant, and context actions.",
   "help.text":
@@ -356,7 +356,7 @@ export const en = {
   "cmd.description.rename": "Rename current session",
 
   "cli.usage":
-    "Usage:\n  opencode-telegram [start] [--mode sources|installed]\n  opencode-telegram status\n  opencode-telegram stop\n  opencode-telegram config\n\nNotes:\n  - No command defaults to `start`\n  - `--mode` is currently supported for `start` only",
+    "Usage:\n  opencode-chat [start] [--mode sources|installed]\n  opencode-chat status\n  opencode-chat stop\n  opencode-chat config\n\nNotes:\n  - No command defaults to `start`\n  - `--mode` is currently supported for `start` only",
   "cli.placeholder.status":
     "Command `status` is currently a placeholder. Real status checks will be added in service layer (Phase 5).",
   "cli.placeholder.stop":

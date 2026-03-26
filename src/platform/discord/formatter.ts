@@ -1,7 +1,7 @@
 /**
  * Discord-specific message formatting utilities.
  *
- * Discord uses standard Markdown (not Telegram's MarkdownV2), so escaping
+ * Discord uses standard Markdown (not MarkdownV2), so escaping
  * is much simpler. This module handles Discord's 2000-character message
  * limit and provides EmbedBuilder helpers for status messages.
  */
@@ -21,7 +21,7 @@ const MARKDOWN_V2_ESCAPE_PATTERN = /\\([_*[\]()~`>#\-+=|{}.!])/g;
  * Formats markdown text for Discord's standard Markdown format.
  *
  * Discord uses standard Markdown which is much more permissive than
- * Telegram's MarkdownV2. This function strips MarkdownV2 escape sequences
+ * MarkdownV2. This function strips MarkdownV2 escape sequences
  * while preserving valid Discord markdown formatting.
  *
  * @param text - The markdown text to format (may contain MarkdownV2 escapes)

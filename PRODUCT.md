@@ -1,18 +1,18 @@
-# OpenCode Telegram Bot
+# OpenCode Chat Assistant
 
-Telegram bot client for OpenCode that lets you run and monitor coding tasks on your local machine from Telegram.
+Discord bot client for OpenCode that lets you run and monitor coding tasks on your local machine from Discord.
 
 > Project concept and boundaries are documented in [`CONCEPT.md`](./CONCEPT.md).
 > Proposed changes that alter the core interaction model should be discussed before implementation.
 
 ## Concept
 
-The app works as a bridge between Telegram and a locally running OpenCode server:
+The app works as a bridge between Discord and a locally running OpenCode server:
 
-- You send prompts from Telegram
+- You send prompts from Discord
 - The bot forwards them to OpenCode
 - The app listens to OpenCode SSE events
-- Results are aggregated and sent back in Telegram-friendly format
+- Results are aggregated and sent back as Discord messages
 
 No public inbound ports are required for normal usage.
 
@@ -20,7 +20,7 @@ No public inbound ports are required for normal usage.
 
 1. The user works on a project locally with OpenCode (Desktop/TUI).
 2. They finish the local session and leave the computer.
-3. Later, while away, they run this bridge service and connect via Telegram.
+3. Later, while away, they run this bridge service and connect via Discord.
 4. They choose an existing session or create a new one.
 5. They send coding tasks and receive periodic progress updates.
 6. They receive completed assistant responses in chat and continue the workflow asynchronously.
@@ -49,7 +49,6 @@ No public inbound ports are required for normal usage.
 ### Task handling
 
 - Send text prompts to OpenCode
-- Accept voice/audio messages, transcribe via Whisper-compatible STT API, and forward recognized text as prompts
 - Interrupt current task (ESC equivalent)
 - Handle OpenCode questions with inline options and custom text answers
 - Send selected/custom answers back to OpenCode (`question.reply`)
@@ -59,32 +58,33 @@ No public inbound ports are required for normal usage.
 
 - Send each completed assistant response after completion signal from SSE
 - Do not expose raw chain-of-thought; send a lightweight thinking indicator instead
-- Split long responses into multiple Telegram messages
+- Split long responses into multiple Discord messages
 - Send code updates as files (size-limited)
 
 ### Session status in chat
 
-- Keep a pinned status message in the chat
+- Keep a pinned status embed in the channel
 - Show session title, project, model, context usage, and changed files
 - Auto-update status from SSE and tool events
 - Preserve pinned message ID across bot restarts
 
 ### Security
 
-- Whitelist by Telegram user ID (single-user mode)
-- Ignore messages from non-authorized users
+- Role-based access control for guild channels (allowedRoleIds)
+- DM whitelist for direct messages (allowedUserIds)
+- Session owner lock — one operator at a time
 
 ### Configuration
 
-- Telegram bot token
-- Allowed Telegram user ID
+- Discord bot token
+- Discord server ID
+- Allowed role IDs and user IDs
 - Default model provider and model ID
 - Selected project persisted in `settings.json`
 - Configurable sessions list size (default: 10)
 - Configurable bot locale
 - Configurable visibility for service messages (thinking/tool calls)
 - Configurable max code file size in KB (default: 100)
-- Optional STT settings for voice transcription (`STT_API_URL`, `STT_API_KEY`, `STT_MODEL`, `STT_LANGUAGE`)
 
 ## Current Product Scope
 
@@ -99,13 +99,14 @@ Current command set:
 - `/projects` - show and switch projects
 - `/rename` - rename current session
 - `/commands` - browse and run custom commands (plus built-ins like `init` and `review`)
+- `/skills` - browse available skills
 - `/opencode_start` - start local OpenCode server
 - `/opencode_stop` - stop local OpenCode server
 - `/help` - show command help
 
-Model, agent, variant, and context actions are available from the persistent bottom keyboard.
+Model, agent, variant, and context actions are available from interactive select menus and buttons.
 
-Text messages (non-commands) are treated as prompts for OpenCode only when no blocking interaction is active. Voice/audio messages are transcribed and then sent as prompts when STT is configured.
+Text messages (non-commands) are treated as prompts for OpenCode only when no blocking interaction is active.
 
 Interaction routing rules:
 
@@ -120,15 +121,14 @@ Model picker behavior:
 - Uses OpenCode local model state (`favorite` + `recent`)
 - Favorites are shown first, recent models are shown after favorites
 - Models already present in favorites are not duplicated in recent
-- Default configured model (`OPENCODE_MODEL_PROVIDER` + `OPENCODE_MODEL_ID`) is treated as favorite
 
 ### Main features already implemented
 
-- [x] Single-user access control by allowed Telegram user ID
-- [x] OpenCode server control from Telegram (`/status`, `/opencode_start`, `/opencode_stop`)
-- [x] Project and session management from Telegram (`/projects`, `/sessions`, `/new`)
+- [x] Role-based access control and DM whitelist (Discord)
+- [x] OpenCode server control from Discord (`/status`, `/opencode_start`, `/opencode_stop`)
+- [x] Project and session management from Discord (`/projects`, `/sessions`, `/new`)
 - [x] Remote task execution and interruption support (`/abort`)
-- [x] Telegram-friendly result delivery, including sending generated code/files when needed
+- [x] Discord-friendly result delivery, including sending generated code/files when needed
 - [x] Interactive question and permission handling directly in chat (buttons + custom answers)
 - [x] Live pinned session status in chat (project, model, context usage, changed files)
 - [x] In-chat controls for model, agent, variant, and context
@@ -137,17 +137,15 @@ Model picker behavior:
 - [x] UI localization support via i18n files
 - [x] Service message visibility controls (thinking/tool updates)
 - [x] Sending code blocks as text files when needed
-- [x] Image attachments support (send photos/screenshots from Telegram to OpenCode)
-- [x] PDF attachments support (send documents from Telegram to OpenCode)
-- [x] Text file attachments support (send code/config/log files from Telegram to OpenCode)
-- [x] Voice/audio transcription via Whisper-compatible APIs (OpenAI/Groq/Together and compatible providers)
+- [x] Image attachments support (send photos/screenshots from Discord to OpenCode)
+- [x] PDF attachments support (send documents from Discord to OpenCode)
+- [x] Text file attachments support (send code/config/log files from Discord to OpenCode)
 
 ## Current Task List
 
 Open tasks for upcoming iterations:
 
 - [ ] `/messages` command: browse session messages with fork/revert actions
-- [ ] `/skills` command: browse skills and choose one for usage
 - [ ] `/mcps` command: browse available MCP servers
 - [ ] Dynamic subagent activity display during task execution
 - [ ] Git tree support
@@ -158,6 +156,6 @@ Open tasks for upcoming iterations:
 
 Optional or longer-term enhancements:
 
-- [ ] Create new OpenCode projects directly from Telegram
+- [ ] Create new OpenCode projects directly from Discord
 - [ ] Add project file browsing helpers (for example, `ls` and `open` flows)
 - [ ] Add a bot settings command with in-chat UI

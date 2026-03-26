@@ -19,8 +19,6 @@ vi.mock("discord.js", async (importOriginal) => {
 // Mock config with all required fields to prevent opencode/client.ts init errors
 vi.mock("../../../../src/config.js", () => ({
   config: {
-    platform: "discord",
-    telegram: { token: "", allowedUserId: 0, proxyUrl: "" },
     opencode: { apiUrl: "http://localhost:4096", username: "opencode", password: "" },
     server: { logLevel: "info" },
     bot: {
@@ -34,7 +32,6 @@ vi.mock("../../../../src/config.js", () => ({
       messageFormatMode: "markdown",
     },
     files: { maxFileSizeKb: 100 },
-    stt: { apiUrl: "", apiKey: "", model: "whisper-large-v3-turbo", language: "" },
     discord: {
       token: "test-token",
       serverId: "123456",

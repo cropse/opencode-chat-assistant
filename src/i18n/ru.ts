@@ -46,7 +46,7 @@ export const ru: I18nDictionary = {
   "common.unknown_error": "неизвестная ошибка",
 
   "start.welcome":
-    "👋 Добро пожаловать в OpenCode Telegram Bot!\n\nИспользуйте команды:\n/projects — выбрать проект\n/sessions — список сессий\n/new — новая сессия\n/status — статус\n/help — справка\n\nРежим, модель и вариант выбираются кнопками внизу.",
+    "👋 Добро пожаловать в OpenCode Chat Assistant!\n\nИспользуйте команды:\n/projects — выбрать проект\n/sessions — список сессий\n/new — новая сессия\n/status — статус\n/help — справка\n\nРежим, модель и вариант выбираются кнопками внизу.",
   "help.keyboard_hint":
     "💡 Режим, модель, вариант и действия с контекстом доступны через нижние кнопки клавиатуры.",
   "help.text":
@@ -360,7 +360,7 @@ export const ru: I18nDictionary = {
   "cmd.description.rename": "Переименовать текущую сессию",
 
   "cli.usage":
-    "Использование:\n  opencode-telegram [start] [--mode sources|installed]\n  opencode-telegram status\n  opencode-telegram stop\n  opencode-telegram config\n\nЗаметки:\n  - Без команды по умолчанию используется `start`\n  - `--mode` сейчас поддерживается только для `start`",
+    "Использование:\n  opencode-chat [start] [--mode sources|installed]\n  opencode-chat status\n  opencode-chat stop\n  opencode-chat config\n\nЗаметки:\n  - Без команды по умолчанию используется `start`\n  - `--mode` сейчас поддерживается только для `start`",
   "cli.placeholder.status":
     "Команда `status` пока работает как заглушка. Реальная проверка статуса появится на этапе service-слоя (Этап 5).",
   "cli.placeholder.stop":

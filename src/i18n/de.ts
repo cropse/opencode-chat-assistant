@@ -49,7 +49,7 @@ export const de: I18nDictionary = {
   "common.unknown_error": "unbekannter Fehler",
 
   "start.welcome":
-    "👋 Willkommen beim OpenCode Telegram Bot!\n\nNutze Befehle:\n/projects — Projekt auswählen\n/sessions — Sitzungsliste\n/new — neue Sitzung\n/status — Status\n/help — Hilfe\n\nNutze die unteren Buttons, um Modus, Modell und Variante zu wählen.",
+    "👋 Willkommen beim OpenCode Chat Assistant!\n\nNutze Befehle:\n/projects — Projekt auswählen\n/sessions — Sitzungsliste\n/new — neue Sitzung\n/status — Status\n/help — Hilfe\n\nNutze die unteren Buttons, um Modus, Modell und Variante zu wählen.",
   "help.keyboard_hint":
     "💡 Nutze die unteren Buttons für Modus, Modell, Variante und Kontextaktionen.",
   "help.text":
@@ -372,7 +372,7 @@ export const de: I18nDictionary = {
   "cmd.description.rename": "Aktuelle Sitzung umbenennen",
 
   "cli.usage":
-    "Verwendung:\n  opencode-telegram [start] [--mode sources|installed]\n  opencode-telegram status\n  opencode-telegram stop\n  opencode-telegram config\n\nHinweise:\n  - Ohne Befehl wird standardmäßig `start` verwendet\n  - `--mode` wird derzeit nur für `start` unterstützt",
+    "Verwendung:\n  opencode-chat [start] [--mode sources|installed]\n  opencode-chat status\n  opencode-chat stop\n  opencode-chat config\n\nHinweise:\n  - Ohne Befehl wird standardmäßig `start` verwendet\n  - `--mode` wird derzeit nur für `start` unterstützt",
   "cli.placeholder.status":
     "Befehl `status` ist derzeit ein Platzhalter. Echte Statusprüfungen werden in der Service-Schicht hinzugefügt (Phase 5).",
   "cli.placeholder.stop":

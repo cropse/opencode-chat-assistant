@@ -1,32 +1,23 @@
-# OpenCode Telegram Bot
+# OpenCode Chat Assistant
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Node.js](https://img.shields.io/badge/node-%3E%3D20-brightgreen)](https://nodejs.org)
 
-> **Fork of [grinev/opencode-telegram-bot](https://github.com/grinev/opencode-telegram-bot) by [Ruslan Grinev](https://github.com/grinev).**
-> This fork is developed and maintained with AI assistance (OpenCode + Claude).
+OpenCode Chat Assistant is a secure Discord bot client for [OpenCode](https://opencode.ai) CLI that runs on your local machine.
 
-OpenCode Telegram Bot is a secure Telegram client for [OpenCode](https://opencode.ai) CLI that runs on your local machine.
+Run AI coding tasks, monitor progress, switch models, and manage sessions from Discord.
 
-Run AI coding tasks, monitor progress, switch models, and manage sessions from your phone.
-
-No open ports, no exposed APIs. The bot communicates with your local OpenCode server and the Telegram Bot API only.
+No open ports, no exposed APIs. The bot connects outward to the Discord Gateway and your local OpenCode server only.
 
 Platforms: macOS, Windows, Linux
 
 Languages: English (`en`), Deutsch (`de`), Español (`es`), Русский (`ru`), 简体中文 (`zh`)
 
-<p align="center">
-  <img src="assets/screencast.gif" width="45%" alt="OpenCode Telegram Bot screencast" />
-</p>
-
-## What This Fork Adds
-
-This fork builds on the [original project](https://github.com/grinev/opencode-telegram-bot) and adds the following enhancements:
+## What This Bot Does
 
 ### External Reply Sync
 
-When you (or another agent) replies to a session from the OpenCode TUI/GUI while the bot is running, the bot detects and forwards those replies to Telegram automatically. No messages are missed, even if they happen outside the bot.
+When you (or another agent) replies to a session from the OpenCode TUI/GUI while the bot is running, the bot detects and forwards those replies to Discord automatically. No messages are missed, even if they happen outside the bot.
 
 - **Message Poller** — REST polling detects assistant replies created outside the bot
 - **Question Poller** — catches pending questions that SSE events may miss
@@ -35,46 +26,34 @@ When you (or another agent) replies to a session from the OpenCode TUI/GUI while
 
 ### Model Picker Pagination
 
-The original model picker could break when the user had many models (Telegram keyboard size limit). This fork paginates the model list with configurable page size (`bot.modelsListLimit`).
+The model picker paginates the model list with configurable page size (`bot.modelsListLimit`) to handle users with many models.
 
 ### Markdown Formatting
 
-Assistant replies, question prompts, permission requests, and status messages now use Telegram MarkdownV2 formatting with automatic fallback to plain text if parsing fails.
+Assistant replies, question prompts, permission requests, and status messages use Discord markdown formatting for better readability.
 
 ### Setup Wizard for Source Mode
 
-Users who `git clone` this repo now get the same interactive setup wizard on first launch that `npx` users get. No need to manually create `config.yaml`.
-
-### Discord Platform Support
-
-This fork adds Discord as a second supported platform alongside Telegram. Use Discord for team/community access with role-based authorization.
-
-- **Role-based access** — users with a configured Discord role can send prompts in channels
-- **DM whitelist** — specific user IDs can interact with the bot via direct messages
-- **Session owner lock** — one operator at a time, others see "session busy" message
-- **14 slash commands** — all bot functions available as `/command` in Discord
-- **Status embed** — pinned message with session info, model, and token usage
-
-See [Discord Setup Guide](docs/DISCORD_SETUP.md) for step-by-step instructions.
+Users who `git clone` this repo get the same interactive setup wizard on first launch that `npx` users get. No need to manually create `config.yaml`.
 
 ---
 
-All original features from the upstream project are included:
+**Core features:**
 
 - **Remote coding** — send prompts to OpenCode from anywhere, receive complete results with code sent as files
 - **Session management** — create new sessions or continue existing ones, just like in the TUI
-- **Live status** — pinned message with current project, model, context usage, and changed files list, updated in real time
+- **Live status** — pinned embed with current project, model, context usage, and changed files list, updated in real time
 - **Model switching** — pick models from OpenCode favorites and recent history directly in the chat
 - **Agent modes** — switch between Plan and Build modes on the fly
 - **Model variants** — select reasoning mode variants per model
-- **Custom Commands** — run OpenCode custom commands (and built-ins like `init`/`review`) from an inline menu
-- **Interactive Q&A** — answer agent questions and approve permissions via inline buttons
-- **Voice prompts** — send voice/audio messages, transcribe via Whisper-compatible API
+- **Custom Commands** — run OpenCode custom commands (and built-ins like `init`/`review`) from a menu
+- **Skills** — browse and run agent skills from Discord
+- **Interactive Q&A** — answer agent questions and approve permissions via buttons
 - **File attachments** — send images, PDF documents, and text-based files to OpenCode
 - **Context control** — compact context when it gets too large, right from the chat
 - **Input flow control** — only one interactive flow active at a time, with contextual hints
-- **Security** — strict user ID whitelist; no one else can access your bot
-- Localization — UI in 5 languages (`bot.locale`)
+- **Security** — role-based access for channels; DM whitelist for direct messages
+- **Localization** — UI in 5 languages (`bot.locale`)
 
 Planned features are listed in [PRODUCT.md](PRODUCT.md#current-task-list).
 
@@ -82,19 +61,10 @@ Planned features are listed in [PRODUCT.md](PRODUCT.md#current-task-list).
 
 - **Node.js 20+** — [download](https://nodejs.org)
 - **OpenCode** — install from [opencode.ai](https://opencode.ai) or [GitHub](https://github.com/sst/opencode)
-- **Telegram Bot** — you'll create one during setup (takes 1 minute)
 
 ## Installation
 
-### 1. Create a Telegram Bot
-
-1. Open [@BotFather](https://t.me/BotFather) in Telegram and send `/newbot`
-2. Follow the prompts to choose a name and username
-3. Copy the **bot token** you receive (e.g. `123456:ABC-DEF1234...`)
-
-You'll also need your **Telegram User ID** — send any message to [@userinfobot](https://t.me/userinfobot) and it will reply with your numeric ID.
-
-### 2. Start OpenCode Server
+### 1. Start OpenCode Server
 
 ```bash
 opencode serve
@@ -102,11 +72,11 @@ opencode serve
 
 > The bot connects to the OpenCode API at `http://localhost:4096` by default.
 
-### 3. Clone & Run
+### 2. Clone & Run
 
 ```bash
-git clone https://github.com/IH-Chung/opencode-telegram-bot.git
-cd opencode-telegram-bot
+git clone https://github.com/IH-Chung/opencode-chat-assistant.git
+cd opencode-chat-assistant
 npm install
 npm run dev
 ```
@@ -114,12 +84,16 @@ npm run dev
 On first launch, an interactive wizard will guide you through the configuration:
 
 1. **Language** — select your preferred UI language
-2. **Bot Token** — paste the token from @BotFather
-3. **User ID** — your numeric Telegram user ID
-4. **API URL** — OpenCode server URL (default: `http://localhost:4096`)
-5. **Server credentials** — username and password (optional)
+2. **Bot Token** — paste the token from Discord Developer Portal
+3. **Server ID** — your Discord server ID (for slash command registration)
+4. **Role IDs** — roles that can use the bot in channels
+5. **User IDs** — (optional) users who can DM the bot
+6. **API URL** — OpenCode server URL (default: `http://localhost:4096`)
+7. **Server credentials** — username and password (optional)
 
 The `config.yaml` file is saved to the project root. Subsequent launches skip the wizard.
+
+For detailed Discord setup instructions, see [docs/DISCORD_SETUP.md](docs/DISCORD_SETUP.md).
 
 ## Supported Platforms
 
@@ -129,7 +103,7 @@ The `config.yaml` file is saved to the project root. Subsequent launches skip th
 | Windows  | Fully supported                              |
 | Linux    | Fully supported (tested on Ubuntu 24.04 LTS) |
 
-## Bot Commands
+## Slash Commands
 
 | Command           | Description                                             |
 | ----------------- | ------------------------------------------------------- |
@@ -140,13 +114,12 @@ The `config.yaml` file is saved to the project root. Subsequent launches skip th
 | `/projects`       | Switch between OpenCode projects                        |
 | `/rename`         | Rename the current session                              |
 | `/commands`       | Browse and run custom commands                          |
+| `/skills`         | Browse and run agent skills                             |
 | `/opencode_start` | Start the OpenCode server remotely                      |
 | `/opencode_stop`  | Stop the OpenCode server remotely                       |
 | `/help`           | Show available commands                                 |
 
-Any regular text message is sent as a prompt to the coding agent. Voice/audio messages are transcribed and sent as prompts when STT is configured.
-
-Model, agent, variant, and context controls are available from the persistent reply keyboard at the bottom of the chat.
+Any regular text message is sent as a prompt to the coding agent. Model, agent, variant, and context controls are available via slash commands and buttons.
 
 > `/opencode_start` and `/opencode_stop` are emergency commands for restarting a stuck server while away from your computer. Under normal usage, start `opencode serve` yourself.
 
@@ -163,58 +136,31 @@ Model, agent, variant, and context controls are available from the persistent re
 The `config.yaml` file location depends on how you run the bot:
 
 - **From source (git clone):** `config.yaml` in project root directory (created by setup wizard on first launch)
-- **macOS (installed):** `~/Library/Application Support/opencode-telegram-bot/config.yaml`
-- **Windows (installed):** `%APPDATA%\opencode-telegram-bot\config.yaml`
-- **Linux (installed):** `~/.config/opencode-telegram-bot/config.yaml`
+- **macOS (installed):** `~/Library/Application Support/opencode-chat-assistant/config.yaml`
+- **Windows (installed):** `%APPDATA%\opencode-chat-assistant\config.yaml`
+- **Linux (installed):** `~/.config/opencode-chat-assistant/config.yaml`
 
-| Key                              | Description                                                                                                  | Required | Default                  |
-| -------------------------------- | ------------------------------------------------------------------------------------------------------------ | :------: | ------------------------ |
-| `telegram.token`                 | Bot token from @BotFather                                                                                    |   Yes    | —                        |
-| `telegram.allowedUserId`         | Your numeric Telegram user ID                                                                                |   Yes    | —                        |
-| `telegram.proxyUrl`              | Proxy URL for Telegram API (SOCKS5/HTTP)                                                                     |    No    | —                        |
-| `opencode.apiUrl`                | OpenCode server URL                                                                                          |    No    | `http://localhost:4096`  |
-| `opencode.username`              | Server auth username                                                                                         |    No    | `opencode`               |
-| `opencode.password`              | Server auth password                                                                                         |    No    | —                        |
-| `bot.locale`                     | Bot UI language (supported locale code, e.g. `en`, `de`, `es`, `ru`, `zh`)                                   |    No    | `en`                     |
-| `bot.sessionsListLimit`          | Sessions per page in `/sessions`                                                                             |    No    | `10`                     |
-| `bot.projectsListLimit`          | Projects per page in `/projects`                                                                             |    No    | `10`                     |
-| `bot.modelsListLimit`            | Models per page in model picker                                                                              |    No    | `10`                     |
-| `bot.serviceMessagesIntervalSec` | Service messages interval (thinking + tool calls); keep `>=2` to avoid Telegram rate limits, `0` = immediate |    No    | `5`                      |
-| `bot.hideThinkingMessages`       | Hide `💭 Thinking...` service messages                                                                       |    No    | `false`                  |
-| `bot.hideToolCallMessages`       | Hide tool-call service messages (`💻 bash ...`, `📖 read ...`, etc.)                                         |    No    | `false`                  |
-| `bot.messageFormatMode`          | Assistant reply formatting mode: `markdown` (Telegram MarkdownV2) or `raw`                                   |    No    | `markdown`               |
-| `files.maxFileSizeKb`            | Max file size (KB) to send as document                                                                       |    No    | `100`                    |
-| `stt.apiUrl`                     | Whisper-compatible API base URL (enables voice/audio transcription)                                          |    No    | —                        |
-| `stt.apiKey`                     | API key for your STT provider                                                                                |    No    | —                        |
-| `stt.model`                      | STT model name passed to `/audio/transcriptions`                                                             |    No    | `whisper-large-v3-turbo` |
-| `stt.language`                   | Optional language hint (empty = provider auto-detect)                                                        |    No    | —                        |
-| `server.logLevel`                | Log level (`debug`, `info`, `warn`, `error`)                                                                 |    No    | `info`                   |
-
-### Discord Platform Configuration
-
-| Key                      |   Required   | Description                                                       |
-| ------------------------ | :----------: | ----------------------------------------------------------------- |
-| `platform`               |      No      | `"telegram"` (default) or `"discord"`                             |
-| `discord.token`          | When discord | Bot token from Discord Developer Portal                           |
-| `discord.serverId`       | When discord | Discord server ID (Enable Developer Mode, right-click server)     |
-| `discord.allowedRoleIds` | When discord | Role IDs for channel access (YAML list or comma-separated string) |
-| `discord.allowedUserIds` |      No      | User IDs for DM access (YAML list or comma-separated string)      |
-
-See [docs/DISCORD_SETUP.md](docs/DISCORD_SETUP.md) for step-by-step Discord setup instructions.
+| Key                              | Description                                                        | Required | Default                 |
+| -------------------------------- | ------------------------------------------------------------------ | :------: | ----------------------- |
+| `discord.token`                  | Bot token from Discord Developer Portal                            |   Yes    | —                       |
+| `discord.serverId`               | Discord server ID for slash command registration                   |   Yes    | —                       |
+| `discord.allowedRoleIds`         | Role IDs for channel access (YAML list or comma-separated)         |    No    | —                       |
+| `discord.allowedUserIds`         | User IDs for DM access (YAML list or comma-separated)              |    No    | —                       |
+| `opencode.apiUrl`                | OpenCode server URL                                                |    No    | `http://localhost:4096` |
+| `opencode.username`              | Server auth username                                               |    No    | `opencode`              |
+| `opencode.password`              | Server auth password                                               |    No    | —                       |
+| `bot.locale`                     | Bot UI language (supported locale code, e.g. `en`, `de`)           |    No    | `en`                    |
+| `bot.sessionsListLimit`          | Sessions per page in `/sessions`                                   |    No    | `10`                    |
+| `bot.projectsListLimit`          | Projects per page in `/projects`                                   |    No    | `10`                    |
+| `bot.modelsListLimit`            | Models per page in model picker                                    |    No    | `10`                    |
+| `bot.serviceMessagesIntervalSec` | Service messages interval (thinking + tool calls), `0` = immediate |    No    | `5`                     |
+| `bot.hideThinkingMessages`       | Hide `💭 Thinking...` service messages                             |    No    | `false`                 |
+| `bot.hideToolCallMessages`       | Hide tool-call service messages (`💻 bash ...`, `📖 read ...`)     |    No    | `false`                 |
+| `bot.messageFormatMode`          | Assistant reply formatting: `markdown` or `raw`                    |    No    | `markdown`              |
+| `files.maxFileSizeKb`            | Max file size (KB) to send as document                             |    No    | `100`                   |
+| `server.logLevel`                | Log level (`debug`, `info`, `warn`, `error`)                       |    No    | `info`                  |
 
 > **Keep your `config.yaml` file private.** It contains your bot token. Never commit it to version control.
-
-### Voice and Audio Transcription (Optional)
-
-If `stt.apiUrl` and `stt.apiKey` are set, the bot will accept voice/audio messages, transcribe them, and send the text to OpenCode as a prompt.
-
-Supported providers (Whisper-compatible):
-
-| Provider     | `stt.apiUrl`                     | `stt.model`               |
-| ------------ | -------------------------------- | ------------------------- |
-| **OpenAI**   | `https://api.openai.com/v1`      | `whisper-1`               |
-| **Groq**     | `https://api.groq.com/openai/v1` | `whisper-large-v3-turbo`  |
-| **Together** | `https://api.together.xyz/v1`    | `openai/whisper-large-v3` |
 
 ### Model Configuration
 
@@ -229,9 +175,13 @@ To add a model to favorites, open OpenCode TUI (`opencode`), go to model selecti
 
 ## Security
 
-The bot enforces a strict **user ID whitelist**. Only the Telegram user whose numeric ID matches `telegram.allowedUserId` can interact with the bot. Messages from any other user are silently ignored.
+The bot uses a two-tier authorization system:
 
-Since the bot runs locally and connects outward only (Telegram API + local OpenCode server), there is no external attack surface.
+1. **Channel access** — users with a configured role (`discord.allowedRoleIds`) can send prompts in server channels
+2. **DM access** — specific user IDs (`discord.allowedUserIds`) can interact via direct messages
+3. **Session owner lock** — only one operator at a time; others see a "session busy" message
+
+Since the bot runs locally and connects outward only (Discord Gateway + local OpenCode server), there is no external attack surface.
 
 ## Development
 
@@ -252,10 +202,11 @@ Since the bot runs locally and connects outward only (Telegram API + local OpenC
 
 ## Troubleshooting
 
-**Bot doesn't respond to messages**
+**Bot doesn't respond to commands**
 
-- Verify `telegram.allowedUserId` matches your actual user ID (check with [@userinfobot](https://t.me/userinfobot))
-- Verify the bot token is correct
+- Verify `discord.token` is valid and the bot is in your server
+- Verify `discord.serverId` matches your server ID (enable Developer Mode in Discord, right-click server, Copy ID)
+- Check the bot has `applications.commands` scope
 
 **"OpenCode server is not available"**
 
@@ -266,6 +217,12 @@ Since the bot runs locally and connects outward only (Telegram API + local OpenC
 
 - Add models to favorites in OpenCode TUI (Ctrl+F on a model)
 
+**Commands not appearing in Discord**
+
+- Ensure slash commands are registered (bot registers on startup)
+- Try restarting the bot
+- Check Discord Developer Portal for command registration errors
+
 ## Contributing
 
 Please follow commit and release note conventions in [CONTRIBUTING.md](CONTRIBUTING.md).
@@ -274,9 +231,9 @@ Please follow commit and release note conventions in [CONTRIBUTING.md](CONTRIBUT
 
 This project is a fork of **[grinev/opencode-telegram-bot](https://github.com/grinev/opencode-telegram-bot)**, originally created by [Ruslan Grinev](https://github.com/grinev).
 
-The original project provides the core architecture, bot framework, session management, and overall design. This fork adds enhancements (external reply sync, model pagination, Markdown formatting, source-mode setup wizard) on top of that foundation.
+The original project provides the core architecture, bot framework, session management, and overall design. This fork evolved into a Discord-only client with enhancements (external reply sync, model pagination, markdown formatting, source-mode setup wizard, skill support).
 
-**All code in this fork — including the enhancements listed above — was developed with AI assistance using [OpenCode](https://opencode.ai) and Claude.**
+**All code in this fork was developed with AI assistance using [OpenCode](https://opencode.ai) and Claude.**
 
 For the original upstream project, visit: https://github.com/grinev/opencode-telegram-bot
 

@@ -42,7 +42,7 @@ export const zh: I18nDictionary = {
   "common.unknown_error": "未知错误",
 
   "start.welcome":
-    "👋 欢迎使用 OpenCode Telegram Bot！\n\n可用命令：\n/projects — 选择项目\n/sessions — 会话列表\n/new — 新建会话\n/status — 状态\n/help — 帮助\n\n请使用底部按钮选择模式、模型和变体。",
+    "👋 欢迎使用 OpenCode Chat Assistant！\n\n可用命令：\n/projects — 选择项目\n/sessions — 会话列表\n/new — 新建会话\n/status — 状态\n/help — 帮助\n\n请使用底部按钮选择模式、模型和变体。",
   "help.keyboard_hint": "💡 代理模式、模型、变体和上下文操作请使用底部键盘按钮。",
   "help.text":
     "📖 **帮助**\n\n/status - 查看服务器状态\n/sessions - 会话列表\n/new - 创建新会话\n/help - 帮助",
@@ -325,7 +325,7 @@ export const zh: I18nDictionary = {
   "cmd.description.rename": "重命名当前会话",
 
   "cli.usage":
-    "用法：\n  opencode-telegram [start] [--mode sources|installed]\n  opencode-telegram status\n  opencode-telegram stop\n  opencode-telegram config\n\n说明：\n  - 不带命令时默认执行 `start`\n  - `--mode` 目前仅支持 `start` 命令",
+    "用法：\n  opencode-chat [start] [--mode sources|installed]\n  opencode-chat status\n  opencode-chat stop\n  opencode-chat config\n\n说明：\n  - 不带命令时默认执行 `start`\n  - `--mode` 目前仅支持 `start` 命令",
   "cli.placeholder.status":
     "命令 `status` 目前是占位符。真实状态检查将会在 service 层（阶段 5）添加。",
   "cli.placeholder.stop":

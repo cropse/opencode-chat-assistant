@@ -4,8 +4,8 @@ Instructions for AI agents working on this project.
 
 ## About the project
 
-**opencode-telegram-bot** is a Telegram bot that acts as a mobile client for [OpenCode](https://opencode.ai).
-It lets a user run and monitor coding tasks on a local machine through Telegram.
+**opencode-chat-assistant** is a Discord bot that acts as a chat client for [OpenCode](https://opencode.ai).
+It lets a user run and monitor coding tasks on a local machine through Discord.
 
 - Product scope, features, and task list: [PRODUCT.md](./PRODUCT.md)
 - Concept and design boundaries: [CONCEPT.md](./CONCEPT.md)
@@ -15,8 +15,8 @@ It lets a user run and monitor coding tasks on a local machine through Telegram.
 ### Design principles
 
 - Single-user, single-session, private-chat interaction model.
-- No open ports or exposed APIs. The bot connects outward to Telegram API and local OpenCode server only.
-- Telegram reply keyboard is a core UX element (model/agent/variant/context controls).
+- No open ports or exposed APIs. The bot connects outward to Discord Gateway and local OpenCode server only.
+- Discord slash commands and buttons are the primary UX (model/agent/variant/context controls).
 - Only one interactive flow active at a time (question, permission, rename, inline menu, commands).
 - Platforms: macOS, Windows, Linux. All three must be supported.
 
@@ -32,16 +32,12 @@ It lets a user run and monitor coding tasks on a local machine through Telegram.
 
 ### Core dependencies
 
-| Package                | Purpose                                          |
-| ---------------------- | ------------------------------------------------ |
-| `grammy`               | Telegram Bot API framework (https://grammy.dev/) |
-| `@grammyjs/menu`       | Inline keyboards and menus                       |
-| `@opencode-ai/sdk`     | Official OpenCode Server SDK (v2 API)            |
-| `yaml`                 | YAML configuration loading                       |
-| `better-sqlite3`       | Session directory cache fallback                 |
-| `socks-proxy-agent`    | SOCKS proxy support for Telegram API             |
-| `https-proxy-agent`    | HTTP/HTTPS proxy support for Telegram API        |
-| `telegram-markdown-v2` | Markdown escaping for Telegram MarkdownV2        |
+| Package            | Purpose                               |
+| ------------------ | ------------------------------------- |
+| `discord.js`       | Discord Bot API framework             |
+| `@opencode-ai/sdk` | Official OpenCode Server SDK (v2 API) |
+| `yaml`             | YAML configuration loading            |
+| `better-sqlite3`   | Session directory cache fallback      |
 
 ### Dev dependencies
 
@@ -72,32 +68,28 @@ It lets a user run and monitor coding tasks on a local machine through Telegram.
 2. Runtime / Bootstrap      — src/runtime/mode.ts, paths.ts, bootstrap.ts
 3. Configuration            — src/config.ts
 4. Application Bootstrap    — src/app/start-bot-app.ts
-5. Bot Layer                — src/bot/ (middleware, commands, handlers, utils)
-6. OpenCode Client Layer    — src/opencode/client.ts, events.ts
+5. Platform Layer           — src/platform/index.ts (Discord bot)
+6. OpenCode Client Layer    — src/opencode/client.ts, events.ts, message-poller.ts, question-poller.ts
 7. State Managers           — src/settings/, src/session/, src/project/, src/model/,
-                              src/agent/, src/variant/, src/keyboard/, src/pinned/,
-                              src/interaction/, src/question/, src/permission/, src/rename/
+                               src/agent/, src/variant/, src/interaction/, src/question/,
+                               src/permission/, src/rename/, src/skill/
 8. Summary Pipeline         — src/summary/aggregator.ts, formatter.ts, tool-message-batcher.ts
 9. Process Manager          — src/process/manager.ts, types.ts
 10. I18n                    — src/i18n/ (en, de, es, ru, zh)
-11. STT                     — src/stt/client.ts
-12. Utilities               — src/utils/logger.ts, error-format.ts, safe-background-task.ts
+11. Utilities               — src/utils/logger.ts, error-format.ts, safe-background-task.ts
 ```
 
 ### Data flow
 
 ```
-Telegram User
+Discord User
   |
   v
-grammY Bot (long polling via getUpdates)
+Discord.js Client (Gateway WebSocket)
   |
-  |-- Middleware chain: [debug log] -> [auth] -> [ensureCommands] -> [interactionGuard]
-  |
-  |-- Commands: /status, /new, /abort, /sessions, /projects, /rename, /commands, /opencode_start, /opencode_stop, /help
-  |-- Reply keyboard hears: agent button, model button, variant button, context button
-  |-- Callback queries: session select, project select, question, permission, agent, model, variant, compact confirm, rename cancel, commands
-  |-- Message handlers: text prompts, voice/audio (STT), photos, documents
+  |-- Slash commands: /status, /new, /abort, /sessions, /projects, /rename, /commands, /skills, /opencode_start, /opencode_stop, /help
+  |-- Button interactions: session select, project select, question, permission, agent, model, variant, compact confirm, commands
+  |-- Message handlers: text prompts, photos, documents
   |
   v
 Managers + OpenCode Client
@@ -105,6 +97,7 @@ Managers + OpenCode Client
   |-- project.list / project.current
   |-- model catalog + state file
   |-- agent list
+  |-- skill list
   |
   v
 OpenCode Server (localhost:4096)
@@ -116,7 +109,7 @@ SSE Events (subscribeToEvents)
 SummaryAggregator.processEvent()
   |-- message.updated / message.part.updated -> onComplete (send assistant reply)
   |-- message.part.updated (tool) -> onTool / onToolFile (send tool notifications + code files)
-  |-- question.asked -> onQuestion (show inline buttons)
+  |-- question.asked -> onQuestion (show buttons)
   |-- permission.asked -> onPermission (show allow/reject buttons)
   |-- session.status (retry) -> onSessionRetry (show retry message)
   |-- session.error -> onSessionError (show error)
@@ -130,7 +123,7 @@ SummaryAggregator.processEvent()
 ToolMessageBatcher (debounced, configurable interval)
   |
   v
-Telegram Bot API -> Telegram User
+Discord API -> Discord User
 ```
 
 ### Startup sequence
@@ -138,15 +131,15 @@ Telegram Bot API -> Telegram User
 ```
 1. src/index.ts or src/cli.ts
 2. resolveRuntimeMode() — "sources" (git repo) or "installed" (npm global)
-3. setRuntimeMode() — sets env var OPENCODE_TELEGRAM_RUNTIME_MODE
+3. setRuntimeMode() — sets env var OPENCODE_CHAT_ASSISTANT_RUNTIME_MODE
 4. [if installed] ensureRuntimeConfigForStart() — runs setup wizard if config.yaml missing
 5. startBotApp():
    a. loadSettings() — read settings.json
    b. processManager.initialize() — restore PID if previously running
    c. reconcileStoredModelSelection() — validate stored model against catalog
    d. warmupSessionDirectoryCache() — load session directories from API + fallbacks
-   e. createBot() — register middleware, commands, handlers
-   f. bot.start() — begin long polling
+   e. createPlatformBot() — create Discord bot, register middleware, commands, handlers
+   f. bot.start() — connect to Discord Gateway
 ```
 
 ---
@@ -159,56 +152,18 @@ Telegram Bot API -> Telegram User
 src/
   index.ts                  — Entry point for npm/npx execution (sources mode)
   cli.ts                    — CLI entry point (#!/usr/bin/env node, installed mode)
+  cli/args.ts               — CLI argument parsing
   config.ts                 — Centralized config loader from config.yaml
 
   app/
     start-bot-app.ts        — Application bootstrap and initialization
 
-  bot/
-    index.ts                — Bot creation, middleware chain, event wiring (859 lines, main orchestrator)
-    message-patterns.ts     — Regex patterns for reply keyboard button detection
-
-    commands/
-      definitions.ts        — Centralized command list (BotCommandI18nDefinition[])
-      start.ts              — /start command (welcome message)
-      help.ts               — /help command (command list)
-      status.ts             — /status command (server health, project, session, model info)
-      new.ts                — /new command (create new session)
-      abort.ts              — /abort command (interrupt current task)
-      sessions.ts           — /sessions command (list + switch sessions, pagination)
-      projects.ts           — /projects command (list + switch projects, pagination)
-      rename.ts             — /rename command (rename current session)
-      commands.ts           — /commands command (browse/run custom commands + built-ins)
-      opencode-start.ts     — /opencode_start command (start server process)
-      opencode-stop.ts      — /opencode_stop command (stop server process)
-      models.ts             — Model-related command helpers
-
-    handlers/
-      prompt.ts             — Core prompt processing (project/session check, create session, fire-and-forget prompt)
-      question.ts           — Question callback + text answer handling (multi-question polls)
-      permission.ts         — Permission request display + callback handling (allow/always/reject)
-      model.ts              — Model selection inline menu
-      agent.ts              — Agent mode selection inline menu
-      variant.ts            — Model variant selection inline menu
-      context.ts            — Context button press + compact confirmation
-      voice.ts              — Voice/audio message handling (STT transcription -> prompt)
-      document.ts           — Document message handling (PDF, text files -> prompt)
-      inline-menu.ts        — Generic inline menu cancel handler
-
-    middleware/
-      auth.ts               — User ID whitelist check (silently ignores unauthorized)
-      interaction-guard.ts  — Block input during active interactions (contextual messages)
-      unknown-command.ts    — Fallback for unrecognized slash commands
-
-    utils/
-      keyboard.ts           — Reply keyboard builder (createMainKeyboard)
-      commands.ts           — Command registration helpers
-      file-download.ts      — Telegram file download + data URI conversion
-      send-with-markdown-fallback.ts — Send with MarkdownV2, fallback to plain text on parse error
-
   opencode/
     client.ts               — SDK client singleton (createOpencodeClient with optional Basic auth)
     events.ts               — SSE event subscription with exponential backoff reconnection
+    message-poller.ts       — REST polling for external reply detection
+    question-poller.ts      — Polling for pending questions
+    processed-messages.ts   — Deduplication for SSE + polling
 
   settings/
     manager.ts              — Persistent settings.json storage (project, session, agent, model, pinned, server process, session cache)
@@ -216,6 +171,7 @@ src/
   session/
     manager.ts              — Thin wrapper for session info persistence (get/set/clear via settings)
     cache-manager.ts        — Session directory cache (API sync + SQLite fallback + filesystem fallback)
+    active-session-manager.ts — Active session owner tracking
 
   project/
     manager.ts              — Project listing (API + cache merge, git worktree filtering, sorted by lastUpdated)
@@ -233,13 +189,9 @@ src/
     manager.ts              — Model variant (reasoning mode) management, validation, formatting
     types.ts                — Re-exports VariantInfo from model/types.ts
 
-  keyboard/
-    manager.ts              — Reply keyboard state, debounced updates (2s min interval), context/model/agent display
-    types.ts                — KeyboardState interface (contextInfo, currentModel, currentAgent, variantName)
-
-  pinned/
-    manager.ts              — Pinned status message (session title, project, model, context tokens, changed files)
-    types.ts                — PinnedMessageState, FileChange types
+  skill/
+    manager.ts              — Skill listing and selection
+    types.ts                — SkillInfo type
 
   interaction/
     manager.ts              — Interaction state machine (start/transition/clear, expiration, allowed commands)
@@ -252,7 +204,7 @@ src/
     types.ts                — Question, QuestionOption, QuestionAnswer types
 
   permission/
-    manager.ts              — Permission request tracking by Telegram message ID
+    manager.ts              — Permission request tracking by message ID
     types.ts                — PermissionRequest, PermissionReply types
 
   rename/
@@ -264,11 +216,8 @@ src/
 
   summary/
     aggregator.ts           — SSE event processing, fires typed callbacks (onComplete, onTool, onQuestion, etc.)
-    formatter.ts            — Message splitting for Telegram limits, MarkdownV2 formatting, code file preparation
+    formatter.ts            — Message splitting for Discord limits, markdown formatting, code file preparation
     tool-message-batcher.ts — Batched tool message delivery with configurable interval, text packing
-
-  stt/
-    client.ts               — Whisper-compatible STT client (multipart POST to /audio/transcriptions, 60s timeout)
 
   runtime/
     mode.ts                 — Runtime mode resolver (sources vs installed), --mode CLI flag parsing
@@ -290,25 +239,22 @@ src/
 
   platform/
     types.ts                — PlatformAdapter interface, PlatformInfo, FileChange, TokensInfo (shared)
-    index.ts                — Platform factory: createPlatformBot("telegram" | "discord")
-
-    telegram/
-      adapter.ts            — TelegramAdapter implementing PlatformAdapter (uses grammY Api)
-      bot.ts                — Telegram bot orchestrator, SSE wiring, event handlers (main orchestrator)
-      formatter.ts          — Telegram MarkdownV2 formatting, TELEGRAM_MESSAGE_LIMIT, TELEGRAM_FORMAT_CONFIG
-      pinned-manager.ts     — Pinned status message management with debounce
-      keyboard-manager.ts   — Reply keyboard state and debounced updates
-      commands/             — 14 Telegram command handlers (/status, /new, /abort, etc.)
-      handlers/             — Inline callbacks (question, permission, model, agent, variant, context)
-      middleware/           — Auth (user ID whitelist), interaction guard, unknown command
+    index.ts                — Platform factory: createPlatformBot() returns Discord bot
 
     discord/
       adapter.ts            — DiscordAdapter implementing PlatformAdapter (uses discord.js Client)
       bot.ts                — Discord bot orchestrator, SSE wiring, slash command routing
       formatter.ts          — Discord Markdown formatting (2000 char limit), EmbedBuilder helpers
       pinned-manager.ts     — Pinned status embed manager with debounce
-      commands/             — 14 Discord slash command handlers + guild registration
-      handlers/             — Button interactions (question/permission) + select menus (model/agent/variant)
+      keyboard-manager.ts   — Reply keyboard state and debounced updates
+      commands/             — Discord slash command handlers + guild registration
+        definitions.ts      — Centralized command list (BotCommandI18nDefinition[])
+        register.ts         — Slash command registration
+        abort.ts, agent.ts, commands.ts, compact.ts, help.ts, model.ts, new.ts,
+        opencode-start.ts, opencode-stop.ts, projects.ts, rename.ts, sessions.ts,
+        skills.ts, status.ts, variant.ts
+      handlers/             — Button interactions + select menus
+        agent.ts, model.ts, permission.ts, project.ts, question.ts, session.ts, variant.ts
       middleware/
         auth.ts             — Role check (guild), DM whitelist, session owner lock
 ```
@@ -325,24 +271,24 @@ tests/
   cli/args.test.ts
   i18n/index.test.ts
   agent/types.test.ts
-  bot/
-    commands/                        — Tests for each command handler
-    handlers/                        — Tests for question, permission, voice, document, inline-menu
-    middleware/                       — Tests for interaction-guard, unknown-command
-    utils/                           — Tests for keyboard, commands, file-download, send-with-markdown-fallback
-    message-patterns.test.ts
-  interaction/manager.test.ts, guard.test.ts, cleanup.test.ts
-  model/manager.test.ts, types.test.ts, capabilities.test.ts
-  opencode/events.test.ts
-  permission/ (via handlers)
+  interaction/cleanup.test.ts, guard.test.ts, manager.test.ts
+  model/capabilities.test.ts, manager.test.ts, types.test.ts
+  opencode/events.test.ts, message-poller.test.ts, processed-messages.test.ts, question-poller.test.ts
+  platform/discord/adapter.test.ts, bot.test.ts, formatter.test.ts
+  platform/discord/commands/register.test.ts
+  platform/discord/handlers/agent.test.ts, model.test.ts, permission.test.ts, question.test.ts, variant.test.ts
+  platform/discord/middleware/auth.test.ts
+  platform/discord/session-history.test.ts
+  platform/index.test.ts, integration.test.ts, types.test.ts
   process/manager.test.ts
   project/manager.test.ts
   question/manager.test.ts
   rename/manager.test.ts
-  runtime/mode.test.ts, paths.test.ts, bootstrap.test.ts
-  session/cache-manager.test.ts
-  stt/client.test.ts
-  summary/aggregator.test.ts, formatter.test.ts, tool-message-batcher.test.ts
+  runtime/bootstrap.test.ts, mode.test.ts, paths.test.ts
+  session/active-session-manager.test.ts, cache-manager.test.ts
+  settings/manager.test.ts
+  skill/manager.test.ts
+  summary/aggregator.test.ts, aggregator-question-external.test.ts, formatter.test.ts, tool-message-batcher.test.ts
   utils/error-format.test.ts
 ```
 
@@ -382,7 +328,7 @@ scripts/
 ### Language
 
 - Code, identifiers, comments, and in-code documentation must be in English.
-- User-facing Telegram messages must be localized through i18n (`t()` function).
+- User-facing messages must be localized through i18n (`t()` function).
 
 ### Code style
 
@@ -404,7 +350,7 @@ scripts/
 
 ### Bot commands
 
-The command list is centralized in `src/bot/commands/definitions.ts`.
+The command list is centralized in `src/platform/discord/commands/definitions.ts`.
 
 ```typescript
 const COMMAND_DEFINITIONS: BotCommandI18nDefinition[] = [
@@ -424,18 +370,18 @@ const COMMAND_DEFINITIONS: BotCommandI18nDefinition[] = [
 Important:
 
 - When adding a command, update `definitions.ts` only.
-- The same source is used for Telegram `setMyCommands` and help/docs.
+- The same source is used for Discord slash command registration and help/docs.
 - Do not duplicate command lists elsewhere.
-- Register the command handler in `src/bot/index.ts` via `bot.command("name", handler)`.
+- Register the command handler in `src/platform/discord/bot.ts`.
 
 ### Adding a new handler
 
-1. Create handler file in `src/bot/handlers/` or `src/bot/commands/`.
+1. Create handler file in `src/platform/discord/handlers/` or `src/platform/discord/commands/`.
 2. Export handler function(s).
-3. Import and register in `src/bot/index.ts`.
+3. Import and register in `src/platform/discord/bot.ts`.
 4. If it involves an interactive flow, use `interactionManager.start()` and handle cleanup.
 5. Add i18n keys to `src/i18n/en.ts` (canonical), then to all other locale files.
-6. Add tests in `tests/bot/handlers/` or `tests/bot/commands/`.
+6. Add tests in `tests/platform/discord/handlers/` or `tests/platform/discord/commands/`.
 
 ### Logging
 
@@ -499,19 +445,19 @@ Interaction kinds: `"inline"` | `"permission"` | `"question"` | `"rename"` | `"c
 
 ### Fire-and-forget prompt dispatch
 
-`session.prompt()` is called via `safeBackgroundTask()` — the handler does NOT await it. This is critical: if the handler blocks on `session.prompt`, grammY cannot call `getUpdates`, which blocks receiving callback queries (button presses) during task execution. Results arrive via SSE events.
+`session.prompt()` is called via `safeBackgroundTask()` — the handler does NOT await it. This is critical: if the handler blocks on `session.prompt`, Discord cannot process incoming interactions (button presses, slash commands) during task execution. Results arrive via SSE events.
 
 ### Event loop yielding
 
-In `src/opencode/events.ts`, each SSE event processing yields to the event loop via `setImmediate()` before dispatching. This prevents SSE event floods from starving grammY's polling loop.
+In `src/opencode/events.ts`, each SSE event processing yields to the event loop via `setImmediate()` before dispatching. This prevents SSE event floods from starving the Discord bot framework's event loop.
 
 ### Keyboard update debouncing
 
-`keyboardManager` debounces keyboard sends with a 2-second minimum interval to avoid Telegram rate limits (~1 msg/sec/chat).
+`keyboardManager` debounces keyboard sends with a 2-second minimum interval to reduce Discord API call frequency.
 
 ### Tool message batching
 
-`ToolMessageBatcher` collects tool call notifications over a configurable interval (default 5s) and sends them as batched messages to reduce Telegram API calls.
+`ToolMessageBatcher` collects tool call notifications over a configurable interval (default 5s) and sends them as batched messages to reduce Discord API call frequency.
 
 ---
 
@@ -527,7 +473,7 @@ Managed by `src/settings/manager.ts`. Survives bot restarts.
 | `currentSession`        | `SessionInfo`               | Active session (id, title, directory)          |
 | `currentAgent`          | `string`                    | Agent mode name (e.g., "build", "plan")        |
 | `currentModel`          | `ModelInfo`                 | Selected model (providerID, modelID, variant)  |
-| `pinnedMessageId`       | `number`                    | Telegram message ID of pinned status message   |
+| `pinnedMessageId`       | `number`                    | Discord message ID of pinned status message    |
 | `serverProcess`         | `ServerProcessInfo`         | PID and start time of managed OpenCode server  |
 | `sessionDirectoryCache` | `SessionDirectoryCacheInfo` | Cached session directories for project listing |
 
@@ -539,7 +485,7 @@ Write operations use a sequential queue (`settingsWriteQueue`) to prevent concur
 | ---------------------- | -------------------------------------------------------------- | ------------------------ |
 | `interactionManager`   | Active interaction (kind, expected input, expiration)          | Input flow control       |
 | `questionManager`      | Question list, current index, selected options, custom answers | Multi-question polls     |
-| `permissionManager`    | Permission requests keyed by Telegram message ID               | Permission reply routing |
+| `permissionManager`    | Permission requests keyed by message ID                        | Permission reply routing |
 | `renameManager`        | Waiting flag, session info, message ID                         | Rename flow state        |
 | `keyboardManager`      | Current agent/model/variant/context display state              | Reply keyboard rendering |
 | `pinnedMessageManager` | Session title, tokens, file changes, message ID                | Pinned status message    |
@@ -606,18 +552,18 @@ await opencodeClient.permission.reply({ id: requestID, allow });
 
 ### SSE event types handled
 
-| Event Type                | Handler                          | Purpose                                                 |
-| ------------------------- | -------------------------------- | ------------------------------------------------------- |
-| `message.updated`         | `handleMessageUpdated`           | Track assistant message lifecycle (created → completed) |
-| `message.part.updated`    | `handleMessagePartUpdated`       | Text chunks, reasoning (thinking), tool calls           |
-| `session.status`          | `handleSessionStatus`            | Detect retry status                                     |
-| `session.idle`            | `handleSessionIdle`              | Stop typing indicator                                   |
-| `session.compacted`       | `handleSessionCompacted`         | Reload context after compaction                         |
-| `session.error`           | `handleSessionError`             | Show error to user                                      |
-| `session.diff`            | `handleSessionDiff`              | Update pinned message file changes                      |
-| `session.created/updated` | Direct handler in `bot/index.ts` | Ingest session info for cache                           |
-| `question.asked`          | `handleQuestionAsked`            | Show question poll to user                              |
-| `permission.asked`        | `handlePermissionAsked`          | Show permission request to user                         |
+| Event Type                | Handler                                     | Purpose                                                 |
+| ------------------------- | ------------------------------------------- | ------------------------------------------------------- |
+| `message.updated`         | `handleMessageUpdated`                      | Track assistant message lifecycle (created → completed) |
+| `message.part.updated`    | `handleMessagePartUpdated`                  | Text chunks, reasoning (thinking), tool calls           |
+| `session.status`          | `handleSessionStatus`                       | Detect retry status                                     |
+| `session.idle`            | `handleSessionIdle`                         | Stop typing indicator                                   |
+| `session.compacted`       | `handleSessionCompacted`                    | Reload context after compaction                         |
+| `session.error`           | `handleSessionError`                        | Show error to user                                      |
+| `session.diff`            | `handleSessionDiff`                         | Update pinned message file changes                      |
+| `session.created/updated` | Direct handler in `platform/discord/bot.ts` | Ingest session info for cache                           |
+| `question.asked`          | `handleQuestionAsked`                       | Show question poll to user                              |
+| `permission.asked`        | `handlePermissionAsked`                     | Show permission request to user                         |
 
 ---
 
@@ -674,7 +620,7 @@ Follow [docs/LOCALIZATION_GUIDE.md](./docs/LOCALIZATION_GUIDE.md):
 
 `tests/setup.ts` runs before every test:
 
-- `ensureTestEnvironment()` — sets required env vars (`TELEGRAM_BOT_TOKEN`, `TELEGRAM_ALLOWED_USER_ID`).
+- `ensureTestEnvironment()` — sets required env vars (`OPENCODE_CHAT_ASSISTANT_HOME`).
 - `resetSingletonState()` — resets all singleton managers to fresh state.
 - `afterEach` — restores mocks, unstubs envs/globals, uses real timers.
 
@@ -693,28 +639,25 @@ npm run build         # TypeScript compilation
 
 ### Configuration (config.yaml)
 
-| Key                              | Required | Default                  | Purpose                              |
-| -------------------------------- | :------: | ------------------------ | ------------------------------------ |
-| `telegram.token`                 |   Yes    | —                        | Bot token from @BotFather            |
-| `telegram.allowedUserId`         |   Yes    | —                        | Numeric Telegram user ID             |
-| `telegram.proxyUrl`              |    No    | —                        | Proxy for Telegram API (socks5/http) |
-| `opencode.apiUrl`                |    No    | `http://localhost:4096`  | OpenCode server URL                  |
-| `opencode.username`              |    No    | `opencode`               | Server auth username                 |
-| `opencode.password`              |    No    | —                        | Server auth password                 |
-| `bot.locale`                     |    No    | `en`                     | Bot UI language (en/de/es/ru/zh)     |
-| `bot.sessionsListLimit`          |    No    | `10`                     | Sessions per page                    |
-| `bot.projectsListLimit`          |    No    | `10`                     | Projects per page                    |
-| `bot.modelsListLimit`            |    No    | `10`                     | Models per page                      |
-| `bot.serviceMessagesIntervalSec` |    No    | `5`                      | Tool message batching interval       |
-| `bot.hideThinkingMessages`       |    No    | `false`                  | Hide thinking indicators             |
-| `bot.hideToolCallMessages`       |    No    | `false`                  | Hide tool call messages              |
-| `bot.messageFormatMode`          |    No    | `markdown`               | `markdown` or `raw`                  |
-| `files.maxFileSizeKb`            |    No    | `100`                    | Max file size for document sending   |
-| `stt.apiUrl`                     |    No    | —                        | Whisper-compatible API base URL      |
-| `stt.apiKey`                     |    No    | —                        | STT API key                          |
-| `stt.model`                      |    No    | `whisper-large-v3-turbo` | STT model name                       |
-| `stt.language`                   |    No    | —                        | Language hint for STT                |
-| `server.logLevel`                |    No    | `info`                   | Log level                            |
+| Key                              | Required | Default                 | Purpose                                 |
+| -------------------------------- | :------: | ----------------------- | --------------------------------------- |
+| `discord.token`                  |   Yes    | —                       | Bot token from Discord Developer Portal |
+| `discord.serverId`               |   Yes    | —                       | Discord server ID                       |
+| `discord.allowedRoleIds`         |    No    | —                       | Role IDs for channel access             |
+| `discord.allowedUserIds`         |    No    | —                       | User IDs for DM access                  |
+| `opencode.apiUrl`                |    No    | `http://localhost:4096` | OpenCode server URL                     |
+| `opencode.username`              |    No    | `opencode`              | Server auth username                    |
+| `opencode.password`              |    No    | —                       | Server auth password                    |
+| `bot.locale`                     |    No    | `en`                    | Bot UI language (en/de/es/ru/zh)        |
+| `bot.sessionsListLimit`          |    No    | `10`                    | Sessions per page                       |
+| `bot.projectsListLimit`          |    No    | `10`                    | Projects per page                       |
+| `bot.modelsListLimit`            |    No    | `10`                    | Models per page                         |
+| `bot.serviceMessagesIntervalSec` |    No    | `5`                     | Tool message batching interval          |
+| `bot.hideThinkingMessages`       |    No    | `false`                 | Hide thinking indicators                |
+| `bot.hideToolCallMessages`       |    No    | `false`                 | Hide tool call messages                 |
+| `bot.messageFormatMode`          |    No    | `markdown`              | `markdown` or `raw`                     |
+| `files.maxFileSizeKb`            |    No    | `100`                   | Max file size for document sending      |
+| `server.logLevel`                |    No    | `info`                  | Log level                               |
 
 ### Runtime modes
 
@@ -725,11 +668,11 @@ npm run build         # TypeScript compilation
 
 ### Platform paths (installed mode)
 
-- **Windows:** `%APPDATA%\opencode-telegram-bot\config.yaml`
-- **macOS:** `~/Library/Application Support/opencode-telegram-bot/config.yaml`
-- **Linux:** `~/.config/opencode-telegram-bot/config.yaml`
+- **Windows:** `%APPDATA%\opencode-chat-assistant\config.yaml`
+- **macOS:** `~/Library/Application Support/opencode-chat-assistant/config.yaml`
+- **Linux:** `~/.config/opencode-chat-assistant/config.yaml`
 
-Override with `OPENCODE_TELEGRAM_HOME` env var.
+Override with `OPENCODE_CHAT_ASSISTANT_HOME` env var.
 
 ---
 
@@ -747,19 +690,19 @@ Override with `OPENCODE_TELEGRAM_HOME` env var.
 
 **Add a new bot command:**
 
-1. Add entry to `COMMAND_DEFINITIONS` in `src/bot/commands/definitions.ts`.
-2. Create handler in `src/bot/commands/<name>.ts`.
-3. Register with `bot.command("<name>", handler)` in `src/bot/index.ts`.
+1. Add entry to `COMMAND_DEFINITIONS` in `src/platform/discord/commands/definitions.ts`.
+2. Create handler in `src/platform/discord/commands/<name>.ts`.
+3. Register the command handler in `src/platform/discord/bot.ts`.
 4. Add i18n key `cmd.description.<name>` to all locale files.
-5. Add tests in `tests/bot/commands/<name>.test.ts`.
+5. Add tests in `tests/platform/discord/commands/<name>.test.ts`.
 
 **Add a new interactive flow:**
 
 1. Create manager in `src/<feature>/manager.ts` with state tracking.
 2. Start interaction via `interactionManager.start({ kind, expectedInput, allowedCommands })`.
-3. Handle callbacks/text in `src/bot/handlers/<feature>.ts`.
+3. Handle callbacks/text in `src/platform/discord/handlers/<feature>.ts`.
 4. Register cleanup in `src/interaction/cleanup.ts` (`clearAllInteractionState`).
-5. Handle the flow in `src/bot/index.ts` callback query handler and/or text handler.
+5. Handle the flow in `src/platform/discord/bot.ts` interaction handler.
 
 **Add a new locale:**
 Follow [docs/LOCALIZATION_GUIDE.md](./docs/LOCALIZATION_GUIDE.md).
@@ -768,4 +711,4 @@ Follow [docs/LOCALIZATION_GUIDE.md](./docs/LOCALIZATION_GUIDE.md).
 
 1. Add case in `SummaryAggregator.processEvent()` switch statement.
 2. Add callback type and setter in the aggregator.
-3. Wire callback in `src/bot/index.ts` `ensureEventSubscription()`.
+3. Wire callback in `src/platform/discord/bot.ts` `ensureEventSubscription()`.

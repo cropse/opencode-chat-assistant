@@ -1,7 +1,7 @@
 {
   "name": "@ih-chung/opencode-chat-assistant",
   "version": "1.0.0",
-  "description": "Telegram and Discord bot client for OpenCode to run and monitor coding tasks from chat.",
+  "description": "Discord bot client for OpenCode to run and monitor coding tasks from chat.",
   "type": "module",
   "main": "./dist/index.js",
   "bin": {

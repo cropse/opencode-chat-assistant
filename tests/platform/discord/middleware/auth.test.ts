@@ -4,12 +4,6 @@ import { ChannelType } from "discord.js";
 // Mock config module - must include all required fields from config.ts
 vi.mock("../../../../src/config.js", () => ({
   config: {
-    platform: "discord",
-    telegram: {
-      token: "TEST_TOKEN",
-      allowedUserId: 123,
-      proxyUrl: "",
-    },
     opencode: {
       apiUrl: "http://localhost:4096",
       username: "opencode",
@@ -30,12 +24,6 @@ vi.mock("../../../../src/config.js", () => ({
     },
     files: {
       maxFileSizeKb: 100,
-    },
-    stt: {
-      apiUrl: "",
-      apiKey: "",
-      model: "whisper-large-v3-turbo",
-      language: "",
     },
     discord: {
       token: "DISCORD_TOKEN",

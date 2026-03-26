@@ -145,7 +145,7 @@ describe("summary/tool-message-batcher", () => {
     expect(sendFile).not.toHaveBeenCalled();
   });
 
-  it("splits oversized batch into multiple Telegram-safe text messages", async () => {
+  it("splits oversized batch into multiple Discord-safe text messages", async () => {
     vi.useFakeTimers();
 
     const sendText = vi.fn().mockResolvedValue(undefined);
