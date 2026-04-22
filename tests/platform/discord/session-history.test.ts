@@ -38,79 +38,60 @@ type MockMessage = {
   parts: MockPart[];
 };
 
-interface ExchangePreview {
-  role: "user" | "assistant";
-  text: string;
-}
-
-/** Maximum number of recent messages to show (covers ~3 user↔assistant exchanges). */
-const MAX_PREVIEW_MESSAGES = 6;
-
-/** Maximum characters per individual message preview. */
-const MAX_PREVIEW_CHARS = 150;
-
 /**
- * Extracted pure logic from session.ts — extracting recent conversation
- * exchanges and token count from a list of session messages.
- *
- * Returns up to MAX_PREVIEW_MESSAGES recent non-summary messages as
- * exchange previews (both user and assistant), plus the token count
- * from the last non-summary assistant message.
+ * Extracted pure logic from session.ts — extracting last preview and token count
+ * from a list of session messages.
  */
 function extractSessionHistory(messages: MockMessage[]): {
-  exchanges: ExchangePreview[];
+  lastMessagePreview: string;
   tokensUsed: number;
 } {
-  // Filter out summary assistant messages
-  const nonSummary = messages.filter((m) => {
-    if (m.info.role === "assistant") {
-      return !(m.info as MockAssistantInfo).summary;
-    }
-    return true;
-  });
-
-  // Get tokensUsed from the LAST non-summary assistant message
+  let lastMessagePreview = "";
   let tokensUsed = 0;
-  const assistantMessages = nonSummary.filter((m) => m.info.role === "assistant");
-  if (assistantMessages.length > 0) {
-    const last = assistantMessages[assistantMessages.length - 1];
-    const info = last.info as MockAssistantInfo;
-    tokensUsed = (info.tokens?.input ?? 0) + (info.tokens?.cache?.read ?? 0);
+
+  for (const msg of messages) {
+    if (msg.info.role === "assistant") {
+      const info = msg.info as MockAssistantInfo;
+      if (!info.summary) {
+        const total = (info.tokens?.input ?? 0) + (info.tokens?.cache?.read ?? 0);
+        if (total > tokensUsed) tokensUsed = total;
+      }
+    }
   }
 
-  // Take last N non-summary messages for preview
-  const recentMessages = nonSummary.slice(-MAX_PREVIEW_MESSAGES);
+  const assistantMessages = messages.filter(
+    (m) => m.info.role === "assistant" && !(m.info as MockAssistantInfo).summary,
+  );
+  const lastAssistant = assistantMessages[assistantMessages.length - 1];
 
-  const exchanges: ExchangePreview[] = recentMessages.map((m) => {
-    const role = m.info.role as "user" | "assistant";
-    const textPart = m.parts.find((p): p is MockTextPart => p.type === "text");
-    let text = textPart?.text ?? "";
-    if (text.length > MAX_PREVIEW_CHARS) {
-      text = text.substring(0, MAX_PREVIEW_CHARS) + "...";
+  if (lastAssistant) {
+    const textPart = lastAssistant.parts.find((p): p is MockTextPart => p.type === "text");
+    if (textPart?.text) {
+      const raw = textPart.text;
+      lastMessagePreview = raw.substring(0, 200) + (raw.length > 200 ? "..." : "");
     }
-    return { role, text };
-  });
+  }
 
-  return { exchanges, tokensUsed };
+  return { lastMessagePreview, tokensUsed };
 }
 
 describe("extractSessionHistory", () => {
-  it("returns empty exchanges and 0 tokens for empty messages", () => {
+  it("returns empty preview and 0 tokens for empty messages", () => {
     const result = extractSessionHistory([]);
-    expect(result.exchanges).toEqual([]);
+    expect(result.lastMessagePreview).toBe("");
     expect(result.tokensUsed).toBe(0);
   });
 
-  it("returns single user exchange with 0 tokens for user-only messages", () => {
+  it("returns 0 tokens when only user messages exist", () => {
     const messages: MockMessage[] = [
       { info: { role: "user" }, parts: [{ type: "text", text: "hello" }] },
     ];
     const result = extractSessionHistory(messages);
-    expect(result.exchanges).toEqual([{ role: "user", text: "hello" }]);
     expect(result.tokensUsed).toBe(0);
+    expect(result.lastMessagePreview).toBe("");
   });
 
-  it("returns single assistant exchange with tokens", () => {
+  it("extracts tokens as input + cache.read from assistant message", () => {
     const messages: MockMessage[] = [
       {
         info: { role: "assistant", tokens: { input: 1000, cache: { read: 500 } } },
@@ -118,78 +99,10 @@ describe("extractSessionHistory", () => {
       },
     ];
     const result = extractSessionHistory(messages);
-    expect(result.exchanges).toEqual([{ role: "assistant", text: "Hello!" }]);
     expect(result.tokensUsed).toBe(1500);
   });
 
-  it("returns both user and assistant messages in a full exchange", () => {
-    const messages: MockMessage[] = [
-      { info: { role: "user" }, parts: [{ type: "text", text: "Hi there" }] },
-      {
-        info: { role: "assistant", tokens: { input: 200 } },
-        parts: [{ type: "text", text: "Hello! How can I help?" }],
-      },
-    ];
-    const result = extractSessionHistory(messages);
-    expect(result.exchanges).toEqual([
-      { role: "user", text: "Hi there" },
-      { role: "assistant", text: "Hello! How can I help?" },
-    ]);
-    expect(result.tokensUsed).toBe(200);
-  });
-
-  it("returns multiple exchanges (2 full pairs)", () => {
-    const messages: MockMessage[] = [
-      { info: { role: "user" }, parts: [{ type: "text", text: "First question" }] },
-      {
-        info: { role: "assistant", tokens: { input: 100 } },
-        parts: [{ type: "text", text: "First answer" }],
-      },
-      { info: { role: "user" }, parts: [{ type: "text", text: "Follow-up" }] },
-      {
-        info: { role: "assistant", tokens: { input: 200 } },
-        parts: [{ type: "text", text: "Second answer" }],
-      },
-    ];
-    const result = extractSessionHistory(messages);
-    expect(result.exchanges).toHaveLength(4);
-    expect(result.exchanges[0]).toEqual({ role: "user", text: "First question" });
-    expect(result.exchanges[1]).toEqual({ role: "assistant", text: "First answer" });
-    expect(result.exchanges[2]).toEqual({ role: "user", text: "Follow-up" });
-    expect(result.exchanges[3]).toEqual({ role: "assistant", text: "Second answer" });
-  });
-
-  it("limits to last 6 messages when conversation is longer", () => {
-    const messages: MockMessage[] = [
-      { info: { role: "user" }, parts: [{ type: "text", text: "Msg 1" }] },
-      {
-        info: { role: "assistant", tokens: { input: 100 } },
-        parts: [{ type: "text", text: "Reply 1" }],
-      },
-      { info: { role: "user" }, parts: [{ type: "text", text: "Msg 2" }] },
-      {
-        info: { role: "assistant", tokens: { input: 200 } },
-        parts: [{ type: "text", text: "Reply 2" }],
-      },
-      { info: { role: "user" }, parts: [{ type: "text", text: "Msg 3" }] },
-      {
-        info: { role: "assistant", tokens: { input: 300 } },
-        parts: [{ type: "text", text: "Reply 3" }],
-      },
-      { info: { role: "user" }, parts: [{ type: "text", text: "Msg 4" }] },
-      {
-        info: { role: "assistant", tokens: { input: 400 } },
-        parts: [{ type: "text", text: "Reply 4" }],
-      },
-    ];
-    const result = extractSessionHistory(messages);
-    // Should only include last 6: Msg 2, Reply 2, Msg 3, Reply 3, Msg 4, Reply 4
-    expect(result.exchanges).toHaveLength(6);
-    expect(result.exchanges[0]).toEqual({ role: "user", text: "Msg 2" });
-    expect(result.exchanges[5]).toEqual({ role: "assistant", text: "Reply 4" });
-  });
-
-  it("takes tokens from LAST assistant message, not peak", () => {
+  it("takes peak token count across multiple assistant messages", () => {
     const messages: MockMessage[] = [
       {
         info: { role: "assistant", tokens: { input: 500, cache: { read: 0 } } },
@@ -197,7 +110,7 @@ describe("extractSessionHistory", () => {
       },
       {
         info: { role: "assistant", tokens: { input: 2000, cache: { read: 800 } } },
-        parts: [{ type: "text", text: "Second response (peak)" }],
+        parts: [{ type: "text", text: "Second response" }],
       },
       {
         info: { role: "assistant", tokens: { input: 1000, cache: { read: 0 } } },
@@ -205,13 +118,39 @@ describe("extractSessionHistory", () => {
       },
     ];
     const result = extractSessionHistory(messages);
-    // LAST assistant message: input=1000, cache=0 → 1000 (NOT peak 2800)
-    expect(result.tokensUsed).toBe(1000);
+    // Peak is second message: 2000 + 800 = 2800
+    expect(result.tokensUsed).toBe(2800);
   });
 
-  it("skips summary assistant messages entirely", () => {
+  it("returns the LAST assistant message as preview, not the first", () => {
     const messages: MockMessage[] = [
-      { info: { role: "user" }, parts: [{ type: "text", text: "Question" }] },
+      {
+        info: { role: "user" },
+        parts: [{ type: "text", text: "Hi" }],
+      },
+      {
+        info: { role: "assistant", tokens: { input: 100 } },
+        parts: [{ type: "text", text: "First assistant reply" }],
+      },
+      {
+        info: { role: "user" },
+        parts: [{ type: "text", text: "Follow-up" }],
+      },
+      {
+        info: { role: "assistant", tokens: { input: 200 } },
+        parts: [
+          { type: "text", text: "Last assistant reply — this is the Greeting session response" },
+        ],
+      },
+    ];
+    const result = extractSessionHistory(messages);
+    expect(result.lastMessagePreview).toBe(
+      "Last assistant reply — this is the Greeting session response",
+    );
+  });
+
+  it("skips summary assistant messages for both tokens and preview", () => {
+    const messages: MockMessage[] = [
       {
         info: { role: "assistant", summary: true, tokens: { input: 9999 } },
         parts: [{ type: "text", text: "Summary: blah blah" }],
@@ -222,29 +161,24 @@ describe("extractSessionHistory", () => {
       },
     ];
     const result = extractSessionHistory(messages);
-    expect(result.tokensUsed).toBe(300);
-    // Summary message should NOT appear in exchanges
-    expect(result.exchanges).toHaveLength(2);
-    expect(result.exchanges[0]).toEqual({ role: "user", text: "Question" });
-    expect(result.exchanges[1]).toEqual({ role: "assistant", text: "Real reply" });
+    expect(result.tokensUsed).toBe(300); // not 9999
+    expect(result.lastMessagePreview).toBe("Real reply"); // not summary
   });
 
-  it("truncates each message to 150 chars with ellipsis", () => {
+  it("truncates long preview text to 200 chars with ellipsis", () => {
     const longText = "a".repeat(300);
     const messages: MockMessage[] = [
-      { info: { role: "user" }, parts: [{ type: "text", text: longText }] },
       {
         info: { role: "assistant", tokens: { input: 100 } },
         parts: [{ type: "text", text: longText }],
       },
     ];
     const result = extractSessionHistory(messages);
-    expect(result.exchanges[0].text).toBe("a".repeat(150) + "...");
-    expect(result.exchanges[1].text).toBe("a".repeat(150) + "...");
+    expect(result.lastMessagePreview).toBe("a".repeat(200) + "...");
   });
 
-  it("does not add ellipsis for text exactly 150 chars", () => {
-    const text = "b".repeat(150);
+  it("does not add ellipsis for text exactly 200 chars", () => {
+    const text = "b".repeat(200);
     const messages: MockMessage[] = [
       {
         info: { role: "assistant", tokens: { input: 100 } },
@@ -252,8 +186,8 @@ describe("extractSessionHistory", () => {
       },
     ];
     const result = extractSessionHistory(messages);
-    expect(result.exchanges[0].text).toBe(text);
-    expect(result.exchanges[0].text).not.toContain("...");
+    expect(result.lastMessagePreview).toBe(text);
+    expect(result.lastMessagePreview).not.toContain("...");
   });
 
   it("extracts text from TextPart — not from non-text parts", () => {
@@ -267,10 +201,10 @@ describe("extractSessionHistory", () => {
       },
     ];
     const result = extractSessionHistory(messages);
-    expect(result.exchanges[0].text).toBe("The real answer");
+    expect(result.lastMessagePreview).toBe("The real answer");
   });
 
-  it("handles assistant message with no text part — returns empty text", () => {
+  it("handles assistant message with no text part", () => {
     const messages: MockMessage[] = [
       {
         info: { role: "assistant", tokens: { input: 100 } },
@@ -278,8 +212,7 @@ describe("extractSessionHistory", () => {
       },
     ];
     const result = extractSessionHistory(messages);
-    expect(result.exchanges).toHaveLength(1);
-    expect(result.exchanges[0]).toEqual({ role: "assistant", text: "" });
+    expect(result.lastMessagePreview).toBe("");
     expect(result.tokensUsed).toBe(100);
   });
 
@@ -292,49 +225,5 @@ describe("extractSessionHistory", () => {
     ];
     const result = extractSessionHistory(messages);
     expect(result.tokensUsed).toBe(750);
-  });
-
-  it("handles user message with no text part — returns empty text", () => {
-    const messages: MockMessage[] = [
-      {
-        info: { role: "user" },
-        parts: [{ type: "file" }],
-      },
-    ];
-    const result = extractSessionHistory(messages);
-    expect(result.exchanges).toHaveLength(1);
-    expect(result.exchanges[0]).toEqual({ role: "user", text: "" });
-  });
-
-  it("only non-summary messages count toward the 6-message limit", () => {
-    const messages: MockMessage[] = [
-      { info: { role: "user" }, parts: [{ type: "text", text: "Old question" }] },
-      {
-        info: { role: "assistant", summary: true, tokens: { input: 9999 } },
-        parts: [{ type: "text", text: "Summary" }],
-      },
-      { info: { role: "user" }, parts: [{ type: "text", text: "Q1" }] },
-      {
-        info: { role: "assistant", tokens: { input: 100 } },
-        parts: [{ type: "text", text: "A1" }],
-      },
-      { info: { role: "user" }, parts: [{ type: "text", text: "Q2" }] },
-      {
-        info: { role: "assistant", tokens: { input: 200 } },
-        parts: [{ type: "text", text: "A2" }],
-      },
-      { info: { role: "user" }, parts: [{ type: "text", text: "Q3" }] },
-      {
-        info: { role: "assistant", tokens: { input: 300 } },
-        parts: [{ type: "text", text: "A3" }],
-      },
-    ];
-    const result = extractSessionHistory(messages);
-    // 7 non-summary messages → last 6: Q1, A1, Q2, A2, Q3, A3
-    // (Old question is trimmed; Summary is excluded entirely)
-    expect(result.exchanges).toHaveLength(6);
-    expect(result.exchanges[0]).toEqual({ role: "user", text: "Q1" });
-    expect(result.exchanges[5]).toEqual({ role: "assistant", text: "A3" });
-    expect(result.tokensUsed).toBe(300); // last assistant = A3
   });
 });

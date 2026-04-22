@@ -117,9 +117,6 @@ For detailed Discord setup instructions, see [docs/DISCORD_SETUP.md](docs/DISCOR
 | `/skills`         | Browse and run agent skills                             |
 | `/opencode_start` | Start the OpenCode server remotely                      |
 | `/opencode_stop`  | Stop the OpenCode server remotely                       |
-| `/model`          | Select AI model                                         |
-| `/agent`          | Select agent mode (build/plan)                          |
-| `/variant`        | Select model variant (reasoning mode)                   |
 | `/help`           | Show available commands                                 |
 
 Any regular text message is sent as a prompt to the coding agent. Model, agent, variant, and context controls are available via slash commands and buttons.
@@ -156,7 +153,6 @@ The `config.yaml` file location depends on how you run the bot:
 | `bot.sessionsListLimit`          | Sessions per page in `/sessions`                                   |    No    | `10`                    |
 | `bot.projectsListLimit`          | Projects per page in `/projects`                                   |    No    | `10`                    |
 | `bot.modelsListLimit`            | Models per page in model picker                                    |    No    | `10`                    |
-| `bot.maxActiveSessions`          | Max concurrent active sessions (1–50)                              |    No    | `10`                    |
 | `bot.serviceMessagesIntervalSec` | Service messages interval (thinking + tool calls), `0` = immediate |    No    | `5`                     |
 | `bot.hideThinkingMessages`       | Hide `💭 Thinking...` service messages                             |    No    | `false`                 |
 | `bot.hideToolCallMessages`       | Hide tool-call service messages (`💻 bash ...`, `📖 read ...`)     |    No    | `false`                 |
@@ -231,14 +227,18 @@ Since the bot runs locally and connects outward only (Discord Gateway + local Op
 
 Please follow commit and release note conventions in [CONTRIBUTING.md](CONTRIBUTING.md).
 
-## Acknowledgments
+## Based On
 
-Originally inspired by [opencode-telegram-bot](https://github.com/grinev/opencode-telegram-bot) by [Ruslan Grinev](https://github.com/grinev). This project has since been rewritten as a Discord-native client with significant additions.
+This project is a fork of **[grinev/opencode-telegram-bot](https://github.com/grinev/opencode-telegram-bot)**, originally created by [Ruslan Grinev](https://github.com/grinev).
 
-**Developed with AI assistance using [OpenCode](https://opencode.ai) and Claude.**
+The original project provides the core architecture, bot framework, session management, and overall design. This fork evolved into a Discord-only client with enhancements (external reply sync, model pagination, markdown formatting, source-mode setup wizard, skill support).
+
+**All code in this fork was developed with AI assistance using [OpenCode](https://opencode.ai) and Claude.**
+
+For the original upstream project, visit: https://github.com/grinev/opencode-telegram-bot
 
 ## License
 
 [MIT](LICENSE)
 
-Originally inspired by [Ruslan Grinev](https://github.com/grinev)'s work | Developed by IH-Chung
+Original work by [Ruslan Grinev](https://github.com/grinev) | Fork modifications by IH-Chung

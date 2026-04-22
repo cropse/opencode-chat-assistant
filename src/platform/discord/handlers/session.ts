@@ -90,10 +90,8 @@ export async function handleSessionSelectInteraction(
       (currentProject.name || currentProject.worktree).split(/[\\/]/).pop() ||
       currentProject.worktree;
 
-    // Fetch recent messages + token count from session history
-    const MAX_PREVIEW_MESSAGES = 6;
-    const MAX_PREVIEW_CHARS = 150;
-    let exchanges: Array<{ role: "user" | "assistant"; text: string }> = [];
+    // Fetch last assistant message + token count from session history
+    let lastMessagePreview = "";
     let tokensUsed = 0;
     try {
       const { data: messages } = await opencodeClient.session.messages({
@@ -104,35 +102,29 @@ export async function handleSessionSelectInteraction(
       if (messages && messages.length > 0) {
         logger.debug(`[Discord] Session messages count=${messages.length}`);
 
-        // Filter out summary (compacted) assistant messages
-        const nonSummary = messages.filter((m) => {
-          if (m.info.role === "assistant") {
-            return !(m.info as AssistantMessage).summary;
-          }
-          return true;
-        });
+        // Find LAST non-summary assistant message (messages may be oldest-first)
+        const assistantMessages = messages.filter(
+          (m) => m.info.role === "assistant" && !(m.info as AssistantMessage).summary,
+        );
+        const lastAssistant = assistantMessages[assistantMessages.length - 1];
 
-        // Get tokensUsed from the LAST non-summary assistant message.
+        // Use the LAST assistant message's input tokens as context size.
         // tokens.input represents the full context window sent for that API call,
         // so the last message reflects current context usage.
-        const assistantMessages = nonSummary.filter((m) => m.info.role === "assistant");
-        if (assistantMessages.length > 0) {
-          const lastAssistant = assistantMessages[assistantMessages.length - 1];
+        if (lastAssistant) {
           const lastInfo = lastAssistant.info as AssistantMessage;
           tokensUsed = (lastInfo.tokens?.input ?? 0) + (lastInfo.tokens?.cache?.read ?? 0);
         }
 
-        // Take last N non-summary messages for preview (covers ~3 user↔assistant exchanges)
-        const recentMessages = nonSummary.slice(-MAX_PREVIEW_MESSAGES);
-        exchanges = recentMessages.map((m) => {
-          const role = m.info.role as "user" | "assistant";
-          const textPart = (m.parts as Part[]).find((p): p is TextPart => p.type === "text");
-          let text = textPart?.text ?? "";
-          if (text.length > MAX_PREVIEW_CHARS) {
-            text = `${text.substring(0, MAX_PREVIEW_CHARS)}...`;
+        if (lastAssistant) {
+          const textPart = (lastAssistant.parts as Part[]).find(
+            (p): p is TextPart => p.type === "text",
+          );
+          if (textPart?.text) {
+            const raw = textPart.text;
+            lastMessagePreview = raw.substring(0, 200) + (raw.length > 200 ? "..." : "");
           }
-          return { role, text };
-        });
+        }
       }
     } catch (err) {
       logger.debug("[Discord] Could not fetch session history for preview:", err);
@@ -148,17 +140,8 @@ export async function handleSessionSelectInteraction(
       tokensUsed: tokensUsed || undefined,
     });
 
-    // Append recent message exchanges using i18n labels
-    if (exchanges.length > 0) {
-      const lines: string[] = [`\n📋 **${t("sessions.preview.title")}**`];
-      for (const ex of exchanges) {
-        const label = ex.role === "user" ? t("sessions.preview.you") : t("sessions.preview.agent");
-        const content = ex.text || "_…_";
-        lines.push(`> **${label}** ${content.split("\n").join("\n> ")}`);
-      }
-      summary += lines.join("\n");
-    } else {
-      summary += `\n\n${t("sessions.preview.empty")}`;
+    if (lastMessagePreview) {
+      summary += `\n\n💬 **Last response:**\n> ${lastMessagePreview.split("\n").join("\n> ")}`;
     }
 
     // Minimal anchor in main channel — thread will hold the real status
